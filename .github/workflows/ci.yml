@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install vale
+        run: |
+          curl -fsSL https://github.com/errata-ai/vale/releases/download/v3.24.0/vale_3.24.0_Linux_64-bit.tar.gz -o vale.tgz
+          tar -xzf vale.tgz vale
+          install -m 0755 vale /usr/local/bin/vale
+          vale --version
+      - name: Fetch write-good styles
+        run: |
+          git clone -q --depth=1 https://github.com/errata-ai/write-good .vale/styles/write-good
+          cd .vale/styles/write-good
+          if [ -d write-good ]; then mv write-good/* .; rmdir write-good; fi
+          find . -maxdepth 1 -name '*.yml' | while read f; do grep -q extends "$f" || rm "$f"; done
+      - name: Docs prose lint
+        run: vale README.md docs/adr/*.md tickets/README.md

@@ -1,0 +1,11 @@
+extends: existence
+message: "Plain word instead: '%s' is drama, not fact."
+link: https://vale.sh
+level: warning
+ignorecase: true
+tokens:
+  - unacceptable
+  - sanctioned
+  - leverage
+  - seamless
+  - robust

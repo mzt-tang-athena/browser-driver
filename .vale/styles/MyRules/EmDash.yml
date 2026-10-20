@@ -1,0 +1,4 @@
+extends: existence
+message: "Use a plain dash, not an em dash."
+level: warning
+raw: '\u2014|\u2013'
