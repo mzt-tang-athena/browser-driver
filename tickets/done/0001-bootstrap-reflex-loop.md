@@ -4,7 +4,7 @@ title: Bootstrap the reflex loop
 created: 2026-10-20
 priority: high
 assignee: opencode
-pr:                  # PR number once opened
+pr: 1
 depends: []
 ---
 
