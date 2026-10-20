@@ -31,3 +31,31 @@ Steps:
    action, page after.
 8. One simple hard-coded goal to prove the loop. Log the decider versus
    planner counts and cost.
+
+## Outcome
+
+Done on 2026-10-20, in one PR. All eight steps are in.
+
+- Project: npm, strict TypeScript (`noUncheckedIndexedAccess` on), vitest.
+  30 tests pass, including real-browser tests for the eyes and the loop.
+- Interfaces: `ReflexProvider` and `Planner` in `src/types.ts`, with a rule
+  based reflex fake and an injectable planner fake.
+- Reflex: `TypeSafeReflex` posts to `https://api.typesafe.ai/v1/systemone`
+  with a bearer key. The key is pending, so `.env.example` holds a
+  placeholder and the demo runs the fake. The live API path is untested
+  until the key arrives.
+- Eyes: AI-mode aria snapshot parser (ported from hnry-drive), numbered
+  element list, click menu with the 24-option chunk limit, the "other"
+  escape option, and 90-char labels.
+- Actuator: click, type, scroll, wait, done, blocked, and the new
+  human-input kind, which ends the run with `needs-human-input` (ADR 0005).
+- Loop: the ported constants (stuck 2 and 4, repeat window 10 with
+  escalate 3 and pause 5, idle pause 3, verify cooldown 3) plus the
+  one-chance repeat challenge for planner answers.
+- Step log: every step prints fully (element list, questions, answers,
+  confidences, action, page after) and lands in `runs/<id>/steps.jsonl`.
+- Proof: `npm run demo` runs the goal "Order a latte" on
+  `fixtures/latte.html`. Outcome done: 2 reflex calls, 1 planner call,
+  full step log printed.
+
+Decisions of the day are in ADR 0005.

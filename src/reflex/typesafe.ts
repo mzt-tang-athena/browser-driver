@@ -1,0 +1,102 @@
+// The first reflex implementation: the TypeSafe cloud API, on the Jev-compatible
+// /v1/systemone endpoint (ADR 0003). A decision model only picks from the options it is
+// given and returns a probability for each option. Ported from hnry-drive's client.
+
+import { CHARS_PER_TOKEN, CONTEXT_MARGIN, HISTORY_FOR_REFLEX, MIN_OUTLINE_CHARS, REFLEX_CONTEXT_TOKENS, REFLEX_LINE_CHARS } from "../limits.ts";
+import type { MenuItem, Observation, ReflexAnswer, ReflexAnswers, ReflexDecision, ReflexProvider, ReflexQuestions, Usage } from "../types.ts";
+import { allOptions, answersByName, nextActionQuestions, pickBest } from "./questions.ts";
+
+export interface TypeSafeOptions {
+  apiKey: string;
+  model: string;
+  endpoint?: string;
+  timeoutMs?: number;
+}
+
+const DEFAULT_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+const DEFAULT_TIMEOUT_MS = 120_000;
+
+const shorten = (text: string, size: number): string => (text.length > size ? `${text.slice(0, size)}…` : text);
+
+/** The state text the model reads: goal, page, recent actions. */
+export function buildState(goal: string, observation: Observation, recentSteps: string[]): string {
+  const pageText = [
+    `Page: ${observation.title || "(no title)"} | ${observation.path}`,
+    observation.messages.length > 0 ? `Messages on the page:\n${observation.messages.map((message) => `- ${message}`).join("\n")}` : "",
+    `Page outline ([eN] marks an element the agent can use):\n${observation.outline}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const recent = recentSteps.slice(-HISTORY_FOR_REFLEX).map((line) => shorten(line, REFLEX_LINE_CHARS)).join("\n");
+  return [`Goal: ${goal}`, pageText, recent ? `Recent actions (oldest first):\n${recent}` : ""].filter(Boolean).join("\n\n");
+}
+
+export function cutOutline(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const cut = text.slice(0, maxChars);
+  return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}\n... (page cut to fit the model's context)`;
+}
+
+// The outline is cut so the state and the longest question fit the model's context.
+// Each question runs as its own sequence, so the longest question counts, not all of them together.
+// The goal comes first and is never cut. Ported from hnry-drive's fittedDeciderState.
+function fittedState(goal: string, observation: Observation, recentSteps: string[], questions: ReflexQuestions): string {
+  const questionLengths = Object.values(questions).map((question) => JSON.stringify(question).length);
+  const budget = Math.floor(REFLEX_CONTEXT_TOKENS * CHARS_PER_TOKEN * CONTEXT_MARGIN);
+  const fixed = Math.max(0, ...questionLengths) + buildState(goal, { ...observation, outline: "" }, recentSteps).length;
+  const room = Math.max(MIN_OUTLINE_CHARS, budget - fixed);
+  return buildState(goal, { ...observation, outline: cutOutline(observation.outline, room) }, recentSteps);
+}
+
+export class TypeSafeReflex implements ReflexProvider {
+  readonly name: string;
+  private readonly apiKey: string;
+  private readonly model: string;
+  private readonly endpoint: string;
+  private readonly timeoutMs: number;
+
+  constructor(options: TypeSafeOptions) {
+    this.apiKey = options.apiKey;
+    this.model = options.model;
+    this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.name = `typesafe:${options.model}`;
+  }
+
+  private async ask(state: string, questions: ReflexQuestions): Promise<{ answers: ReflexAnswers; usage: Usage | null; ms: number }> {
+    const started = Date.now();
+    const response = await fetch(this.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify({ model: this.model, state, questions }),
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`TypeSafe ${this.model} answered HTTP ${response.status}: ${text.slice(0, 300)}`);
+    const body = JSON.parse(text) as unknown;
+    return { answers: answersByName(body, Object.keys(questions)), usage: (body as { usage?: Usage }).usage ?? null, ms: Date.now() - started };
+  }
+
+  async decide(input: { goal: string; observation: Observation; recentSteps: string[] }): Promise<ReflexDecision> {
+    const { observation } = input;
+    const menu = observation.menu;
+    const questions = nextActionQuestions(menu);
+    const state = fittedState(input.goal, observation, input.recentSteps, questions);
+    const { answers, usage, ms } = await this.ask(state, questions);
+    const done = answers["goal_done"];
+    const best = pickBest(answers);
+    const item: MenuItem | undefined = best ? menu.find((candidate) => candidate.id === best.id) : undefined;
+    return {
+      choice: best && item ? { id: best.id, label: item.label, probability: best.probability } : null,
+      options: allOptions(answers).map((option) => {
+        const candidate = menu.find((entry) => entry.id === option.id);
+        return { ...option, label: candidate?.label ?? null };
+      }),
+      doneProbability: typeof (done as ReflexAnswer | undefined)?.noul === "number" ? (done as { noul: number }).noul : 0,
+      ms,
+      usage,
+      request: { state, questions },
+      answers,
+    };
+  }
+}

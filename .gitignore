@@ -1,28 +1,4 @@
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Editor
-*.swp
-.idea/
-.vscode/
-
-# Environment and secrets
-.env
-.env.*
-*.pem
-*.key
-
-# Node
 node_modules/
-dist/
-build/
-
-# Python
-__pycache__/
-.venv/
-*.pyc
-
-# Vale (write-good is cloned, not committed)
-.vale/styles/write-good/
+runs/
+.env
+.vale/

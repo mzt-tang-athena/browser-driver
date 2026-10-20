@@ -1,0 +1,24 @@
+{
+  "name": "browser-driver",
+  "version": "0.1.0",
+  "description": "A browser driver service for agents that browse and act. Playwright acts. A reflex model makes routine decisions. A planner model handles hard steps.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
