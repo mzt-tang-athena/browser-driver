@@ -284,5 +284,9 @@ export class ReflexLoop {
     this.stats.reflex.ms += decision.ms;
     this.stats.reflex.inputTokens += decision.usage?.input_tokens ?? 0;
     this.stats.reflex.outputTokens += decision.usage?.output_tokens ?? 0;
+    if (decision.costUsd != null) {
+      this.stats.reflex.costUsd ??= 0;
+      this.stats.reflex.costUsd += decision.costUsd;
+    }
   }
 }

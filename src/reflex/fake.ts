@@ -39,6 +39,7 @@ export class FakeReflex implements ReflexProvider {
       doneProbability: doneRule?.done ?? 0,
       ms: 0,
       usage: null,
+      costUsd: null,
       request: { state: `FakeReflex read:\n${pageText}`, questions },
       answers: {},
     };

@@ -27,3 +27,10 @@ planner stays model agnostic. We keep two interfaces where one model
 call could do both, because the roles differ in cost and latency. We
 add a test fake for each interface from day one, so one implementation
 never stands alone as proof of the contract.
+
+## Amendment 2026-10-20
+
+The first live reflex runs through the OpenCode Console systemone endpoint,
+not the TypeSafe cloud directly. The Console serves the same Jev contract
+and the key was already connected. See ADR 0006. TypeSafe's cloud stays
+reachable by config, with one endpoint and key change.

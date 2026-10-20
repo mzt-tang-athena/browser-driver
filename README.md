@@ -26,8 +26,10 @@ agents faster and cheaper by about ten times.
 
 - `npm install`, then `npm test` for the unit and browser tests
 - `npm run demo` runs one hard-coded goal on a local fixture page and
-  prints the step log. It uses the reflex test fake until the user
-  sets the TypeSafe key in `.env` (see `.env.example`)
+  prints the step log. The reflex runs the live Jev model through the
+  OpenCode Console when a key resolves: `OPENCODE_API_KEY` in `.env`,
+  or the local OpenCode credential store (see `.env.example` and
+  ADR 0006). Without a key it runs the reflex test fake
 - The planner is a test fake. The real planner lands with its ticket
 
 ## Decisions
@@ -35,7 +37,7 @@ agents faster and cheaper by about ten times.
 See `docs/adr/`. Start with 0001 (TypeScript), 0002 (driver as a
 service), 0003 (reflex and planner roles), 0004 (event schema in the
 contracts repo). Read 0005 for the loop's ported limits and the
-human-input action.
+human-input action. Read 0006 for where the live reflex runs.
 
 ## Related
 
