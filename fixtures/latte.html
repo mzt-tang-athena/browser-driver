@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bean Counter Cafe</title>
+  </head>
+  <body>
+    <h1>Bean Counter Cafe</h1>
+    <p>Pick a drink and we will make it. The barista is a button.</p>
+    <button id="latte">Order latte</button>
+    <button id="espresso">Order espresso</button>
+    <button id="read-more">Read our story</button>
+    <input id="name" placeholder="Your name" />
+    <p id="status" role="status"></p>
+    <script>
+      document.getElementById("latte").addEventListener("click", () => {
+        document.getElementById("status").textContent = "Latte ordered. Thank you!";
+      });
+      document.getElementById("espresso").addEventListener("click", () => {
+        document.getElementById("status").textContent = "Espresso ordered. Thank you!";
+      });
+      // "Read our story" has no handler. Clicking it changes nothing, which the loop must survive.
+    </script>
+  </body>
+</html>
