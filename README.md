@@ -1,28 +1,34 @@
-# project-template
+# browser-driver
 
-Skeleton for new mzt-tang-athena projects. Create a repo with
-"Use this template", rename the title lines, and start.
+A browser driver service for agents that browse and act on the web.
+Playwright does the acting. A reflex model (Jev API) makes the routine
+decisions. A planner model handles hard steps, writes text, and verifies
+the goal.
 
-## What is inside
+## Why
 
-- `README.md` - what the project is, and what comes next (the plan)
-- `AGENTS.md` - rules for agents: PR flow, tickets, ADRs
-- `docs/adr/` - decision record; copy `adr-template.md` per decision
-- `tickets/` - the work queue; the rules live in `tickets/README.md`
-- `.github/workflows/ci.yml` - prose lint for README and ADRs
-- `.vale.ini` and `.vale/styles/` - the writing rules
+Agents that drive a browser with a big model alone are slow and costly.
+Most browsing decisions are small. A cheap reflex model answers them,
+and the planner only steps in when needed. That split makes browser
+agents faster and cheaper by about ten times.
 
-## Conventions
+## Parts
 
-Decisions with trade-offs get an ADR the same day. All work starts as a
-ticket. Agent rules enforce both, not tooling. When a rule keeps getting
-missed, add a CI check for it then.
+- Driver service: Playwright, persistent browser profiles, a small HTTP
+  API, and an MCP adapter
+- Loop: observe, ask the reflex, act, escalate to the planner, verify
+- Web UI (later): goal input, run log, live view, approvals
+- Voice (later): capture on the client, goal text on the server
 
-## Plan
+## Decisions
 
-One paragraph: what this project is and who it serves. Then the phases:
+See `docs/adr/`. Start with 0001 (TypeScript), 0002 (driver as a
+service), 0003 (reflex and planner roles), 0004 (event schema in the
+contracts repo).
 
-1. Phase one, one line.
-2. Phase two, one line.
+## Related
 
-Tickets queue the work: `tickets/open/`.
+- `mzt-tang-athena/contracts`: shared schemas, one package per domain
+- `michaeltang-hnry/hnry-drive`: the work sibling. We port its tested
+  constants and patterns: menu chunking at 24 options, escalation
+  thresholds, flow recording with stable locators, per-run stats
