@@ -1,3 +1,13 @@
+---
+id: 0001
+title: Bootstrap the reflex loop
+created: 2026-10-20
+priority: high
+assignee: opencode
+pr:                  # PR number once opened
+depends: []
+---
+
 # 0001. Bootstrap the reflex loop
 
 Build the first end-to-end loop and prove it on one simple goal.
