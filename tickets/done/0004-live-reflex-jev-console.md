@@ -35,4 +35,18 @@ Wire the loop's reflex to that live endpoint:
 
 ## Outcome
 
-(filled in before moving to done/)
+Done on 2026-10-20, in one PR.
+
+- The reflex runs the real Jev contract through the OpenCode Console
+  endpoint (`https://opencode.ai/inference/systemone/v1/systemone`),
+  default model `jev-1.13-free`. The provider class is `SystemOneReflex`.
+- The key resolves from `OPENCODE_API_KEY` (env or `.env`) or, as a
+  fallback, from the local OpenCode credential store. It is never printed.
+- `npm run demo -- --reflex=systemone` runs the goal live: 2 reflex
+  calls, about 1.3 seconds, 1109 tokens in and 124 out, cost $0 on the
+  free model. Step 1 picks the right button at 100% confidence; after
+  the click the done probability is 0.97 and the planner verifies.
+- The TypeSafe cloud and a local Ollama (tev1) stay reachable by config
+  alone. A chat-model logprob bridge was considered and dropped (ADR 0006).
+- Tests stay green and offline: 31 pass. One new test locks the real
+  Jev response shape into `answersByName`.

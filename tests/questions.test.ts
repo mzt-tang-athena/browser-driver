@@ -57,6 +57,22 @@ describe("answers", () => {
     expect(listed["goal_done"]?.noul).toBe(0.5);
   });
 
+  it("reads the real Jev response shape from the live endpoint", () => {
+    // Captured from POST https://opencode.ai/inference/systemone/v1/systemone, model jev-1.13-free.
+    const body = {
+      model: "jev-1.13-free",
+      answers: {
+        next_1: { type: "choice", choice: "a", confidence: 1, probabilities: { a: 1, b: 0, other: 0 } },
+        goal_done: { type: "noul", noul: 0.17 },
+      },
+      usage: { input_tokens: 353, output_tokens: 55 },
+    };
+    const answers = answersByName(body, ["next_1", "goal_done"]);
+    expect(pickBest(answers)).toEqual({ id: "a", probability: 1 });
+    expect(allOptions(answers)).toEqual([{ id: "a", probability: 1, part: "next_1" }, { id: "b", probability: 0, part: "next_1" }]);
+    expect(answers["goal_done"]?.noul).toBe(0.17);
+  });
+
   it("picks the best non-escape choice across parts", () => {
     const answers: ReflexAnswers = {
       next_1: { choice: "e1", probabilities: { e1: 0.4, other: 0.6 } },

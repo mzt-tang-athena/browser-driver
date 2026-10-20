@@ -1,20 +1,32 @@
-// The first reflex implementation: the TypeSafe cloud API, on the Jev-compatible
-// /v1/systemone endpoint (ADR 0003). A decision model only picks from the options it is
-// given and returns a probability for each option. Ported from hnry-drive's client.
+// The reflex implementation: the Jev-compatible /v1/systemone contract (ADR 0003).
+// A decision model only picks from the options it is given and returns a probability
+// for each option. Ported from hnry-drive's client. Runs against the TypeSafe cloud,
+// a local Ollama, or the OpenCode Console endpoint, by config alone.
 
 import { CHARS_PER_TOKEN, CONTEXT_MARGIN, HISTORY_FOR_REFLEX, MIN_OUTLINE_CHARS, REFLEX_CONTEXT_TOKENS, REFLEX_LINE_CHARS } from "../limits.ts";
 import type { MenuItem, Observation, ReflexAnswer, ReflexAnswers, ReflexDecision, ReflexProvider, ReflexQuestions, Usage } from "../types.ts";
 import { allOptions, answersByName, nextActionQuestions, pickBest } from "./questions.ts";
 
-export interface TypeSafeOptions {
+export interface SystemOneOptions {
   apiKey: string;
   model: string;
   endpoint?: string;
   timeoutMs?: number;
+  /** Prices per million tokens. Without them the cost logs as unknown. */
+  pricing?: { inputPerMTok: number; outputPerMTok: number };
 }
 
-const DEFAULT_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+/** TypeSafe's cloud endpoint. OpenCode Console and a local Ollama serve the same contract. */
+export const TYPESAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+export const OPENCODE_CONSOLE_ENDPOINT = "https://opencode.ai/inference/systemone/v1/systemone";
 const DEFAULT_TIMEOUT_MS = 120_000;
+
+// OpenCode Console list prices, per million tokens (console/models, October 2026).
+// Output is free on both Jev models today.
+const JEV_PRICES: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
+  "jev-1.13": { inputPerMTok: 0.042, outputPerMTok: 0 },
+  "jev-1.13-free": { inputPerMTok: 0, outputPerMTok: 0 },
+};
 
 const shorten = (text: string, size: number): string => (text.length > size ? `${text.slice(0, size)}…` : text);
 
@@ -48,19 +60,21 @@ function fittedState(goal: string, observation: Observation, recentSteps: string
   return buildState(goal, { ...observation, outline: cutOutline(observation.outline, room) }, recentSteps);
 }
 
-export class TypeSafeReflex implements ReflexProvider {
+export class SystemOneReflex implements ReflexProvider {
   readonly name: string;
   private readonly apiKey: string;
   private readonly model: string;
   private readonly endpoint: string;
   private readonly timeoutMs: number;
+  private readonly pricing: { inputPerMTok: number; outputPerMTok: number } | null;
 
-  constructor(options: TypeSafeOptions) {
+  constructor(options: SystemOneOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
-    this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
+    this.endpoint = options.endpoint ?? TYPESAFE_ENDPOINT;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.name = `typesafe:${options.model}`;
+    this.pricing = options.pricing ?? JEV_PRICES[options.model] ?? null;
+    this.name = `systemone:${options.model}`;
   }
 
   private async ask(state: string, questions: ReflexQuestions): Promise<{ answers: ReflexAnswers; usage: Usage | null; ms: number }> {
@@ -86,6 +100,7 @@ export class TypeSafeReflex implements ReflexProvider {
     const done = answers["goal_done"];
     const best = pickBest(answers);
     const item: MenuItem | undefined = best ? menu.find((candidate) => candidate.id === best.id) : undefined;
+    const costUsd = this.pricing && usage ? ((usage.input_tokens ?? 0) / 1e6) * this.pricing.inputPerMTok + ((usage.output_tokens ?? 0) / 1e6) * this.pricing.outputPerMTok : null;
     return {
       choice: best && item ? { id: best.id, label: item.label, probability: best.probability } : null,
       options: allOptions(answers).map((option) => {
@@ -95,6 +110,7 @@ export class TypeSafeReflex implements ReflexProvider {
       doneProbability: typeof (done as ReflexAnswer | undefined)?.noul === "number" ? (done as { noul: number }).noul : 0,
       ms,
       usage,
+      costUsd,
       request: { state, questions },
       answers,
     };

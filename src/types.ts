@@ -105,6 +105,8 @@ export interface ReflexDecision {
   doneProbability: number;
   ms: number;
   usage: Usage | null;
+  /** Known cost of this call in US dollars. Null when the pricing is unknown. */
+  costUsd: number | null;
   /** What the model read, kept so the log shows why it chose what it chose. */
   request: { state: string; questions: ReflexQuestions };
   answers: ReflexAnswers;
