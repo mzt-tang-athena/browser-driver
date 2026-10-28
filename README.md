@@ -26,11 +26,13 @@ agents faster and cheaper by about ten times.
 
 - `npm install`, then `npm test` for the unit and browser tests
 - `npm run demo` runs one hard-coded goal on a local fixture page and
-  prints the step log. The reflex runs the live Jev model through the
-  OpenCode Console when a key resolves: `OPENCODE_API_KEY` in `.env`,
-  or the local OpenCode credential store (see `.env.example` and
-  ADR 0006). Without a key it runs the reflex test fake
-- The planner is a test fake. The real planner lands with its ticket
+  prints the step log. The reflex runs the live Jev model and the planner
+  runs a live chat model through the OpenCode Console when a key resolves:
+  `OPENCODE_API_KEY` in `.env`, or the local OpenCode credential store
+  (see `.env.example` and ADR 0006). Without a key both run as test fakes
+- `--reflex=fake` and `--planner=fake` force either fake
+- The demo proves the loop. Real goals need ticket 0007 (guardrails) and
+  ticket 0008 (field filling) first
 
 ## Decisions
 

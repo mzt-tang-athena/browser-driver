@@ -21,12 +21,12 @@ export class FakePlanner implements Planner {
 
   async decide(input: { goal: string; observation: Observation; recentSteps: string[]; reason: string }): Promise<PlannerDecision> {
     const action: Action = this.options.decide ? await this.options.decide(input) : { kind: "blocked", reason: "the fake planner has no decide script" };
-    return { action, reason: this.options.decideReason ?? "the fake planner decided", ms: 0 };
+    return { action, reason: this.options.decideReason ?? "the fake planner decided", ms: 0, usage: null, costUsd: 0 };
   }
 
   async verify(input: { goal: string; observation: Observation }): Promise<PlannerVerify> {
-    if (!this.options.verify) return { done: false, reason: "the fake planner has no verify script", ms: 0 };
+    if (!this.options.verify) return { done: false, reason: "the fake planner has no verify script", ms: 0, usage: null, costUsd: 0 };
     const answer = await this.options.verify(input);
-    return { ...answer, ms: 0 };
+    return { ...answer, ms: 0, usage: null, costUsd: 0 };
   }
 }

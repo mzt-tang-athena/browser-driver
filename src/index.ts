@@ -1,17 +1,18 @@
-// The proof run for ticket 0001: one hard-coded goal, the loop runs it, the step log
-// prints. The reflex is the test fake until the TypeSafe key arrives; with a key, set
-// TYPESAFE_API_KEY and TYPESAFE_MODEL in .env and pass --reflex typesafe.
+// The proof run: one hard-coded goal, the loop runs it, the step log prints.
+// The reflex (Jev) and the planner (a chat model) both run live when a key
+// resolves. Without a key, both run as test fakes.
 
 import { chromium } from "playwright";
 import { join } from "node:path";
 import { observe } from "./eyes.ts";
+import { ChatPlanner, OPENCODE_CHAT_BASE_URL } from "./planner/chat.ts";
 import { FakePlanner } from "./planner/fake.ts";
 import { FakeReflex } from "./reflex/fake.ts";
 import { OPENCODE_CONSOLE_ENDPOINT, SystemOneReflex } from "./reflex/systemone.ts";
 import { resolveApiKey } from "./reflex/keysource.ts";
 import { ReflexLoop } from "./loop.ts";
 import { newRunId, printSummary, StepLog } from "./steplog.ts";
-import { mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 const GOAL = "Order a latte";
 
@@ -31,19 +32,17 @@ function loadEnv(): Record<string, string> {
   }
 }
 
-function flag(name: string): string | null {
-  const index = process.argv.indexOf(`--reflex=${name}`);
-  if (index !== -1) return name;
-  const bare = process.argv.indexOf("--reflex");
-  if (bare !== -1 && process.argv[bare + 1] === name) return name;
-  return null;
+function arg(name: string): string | null {
+  const equals = process.argv.find((value) => value.startsWith(`--${name}=`));
+  if (equals) return equals.slice(name.length + 3);
+  const index = process.argv.indexOf(`--${name}`);
+  return index === -1 ? null : (process.argv[index + 1] ?? null);
 }
 
 // The reflex runs live when a key resolves (env, .env, or the local OpenCode
 // credential store). The fake stays the default for tests and offline runs.
-function makeReflex(env: Record<string, string>): { reflex: FakeReflex | SystemOneReflex; note: string } {
-  const wanted = flag("systemone") ?? flag("fake") ?? (env["REFLEX_PROVIDER"] === "systemone" || env["REFLEX_PROVIDER"] === "fake" ? env["REFLEX_PROVIDER"] : null);
-  const apiKey = resolveApiKey({ ...process.env, ...env });
+function makeReflex(env: Record<string, string>, apiKey: string | null): { reflex: FakeReflex | SystemOneReflex; note: string } {
+  const wanted = arg("reflex") ?? env["REFLEX_PROVIDER"] ?? null;
   if (wanted === "fake" || (wanted === null && !apiKey)) {
     return {
       reflex: new FakeReflex({
@@ -54,23 +53,36 @@ function makeReflex(env: Record<string, string>): { reflex: FakeReflex | SystemO
           { pick: /order latte/i },
         ],
       }),
-      note: "reflex: test fake (no OPENCODE_API_KEY resolved; force live with --reflex=systemone)",
+      note: "reflex: test fake (no key resolved; force live with --reflex=systemone)",
     };
   }
-  if (!apiKey) {
-    throw new Error("No reflex key found. Set OPENCODE_API_KEY in .env, or connect OpenCode on this machine, or run the fake with --reflex=fake.");
-  }
+  if (!apiKey) throw new Error("No reflex key found. Set OPENCODE_API_KEY in .env, or connect OpenCode on this machine, or run the fake with --reflex=fake.");
   const model = env["SYSTEMONE_MODEL"] ?? "jev-1.13-free";
   const endpoint = env["SYSTEMONE_ENDPOINT"] ?? OPENCODE_CONSOLE_ENDPOINT;
-  return { reflex: new SystemOneReflex({ apiKey, model, endpoint }), note: `reflex: live Jev at ${endpoint}` };
+  return { reflex: new SystemOneReflex({ apiKey, model, endpoint }), note: `reflex: live Jev (${model}) at ${endpoint}` };
+}
+
+// The planner runs live on the same account when a key resolves. Its fake
+// approves whatever the reflex proposes, so a demo without a key proves only the loop.
+function makePlanner(env: Record<string, string>, apiKey: string | null): { planner: FakePlanner | ChatPlanner; note: string } {
+  const wanted = arg("planner") ?? env["PLANNER_PROVIDER"] ?? null;
+  if (wanted === "fake" || (wanted === null && !apiKey)) {
+    return {
+      planner: new FakePlanner({ verify: () => ({ done: true, reason: "the fake planner approves the goal" }) }),
+      note: "planner: test fake (no key resolved; force live with --planner=chat)",
+    };
+  }
+  if (!apiKey) throw new Error("No planner key found. Set OPENCODE_API_KEY in .env, or connect OpenCode on this machine, or run the fake with --planner=fake.");
+  const model = env["PLANNER_MODEL"] ?? "glm-5.3-flash";
+  const baseUrl = env["PLANNER_BASE_URL"] ?? OPENCODE_CHAT_BASE_URL;
+  return { planner: new ChatPlanner({ apiKey, model, baseUrl }), note: `planner: live chat model (${model}) at ${baseUrl}` };
 }
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  const { reflex, note } = makeReflex(env);
-  const planner = new FakePlanner({
-    verify: () => ({ done: true, reason: "the page shows the ordered confirmation for the goal drink" }),
-  });
+  const apiKey = resolveApiKey({ ...process.env, ...env });
+  const { reflex, note: reflexNote } = makeReflex(env, apiKey);
+  const { planner, note: plannerNote } = makePlanner(env, apiKey);
 
   const runDir = join("runs", newRunId());
   const log = new StepLog({ dir: runDir });
@@ -81,7 +93,8 @@ async function main(): Promise<void> {
     await page.goto(fixture, { waitUntil: "load" });
 
     console.log(`goal: ${GOAL}`);
-    console.log(note);
+    console.log(reflexNote);
+    console.log(plannerNote);
     const observation = await observe(page);
     console.log(`start page: ${observation.title} | ${observation.url}`);
     console.log("");
@@ -91,7 +104,6 @@ async function main(): Promise<void> {
     const result = await loop.run();
     printSummary(console.log, result, GOAL);
     if (log.path) console.log(`  step log file: ${log.path}`);
-    mkdirSync(runDir, { recursive: true });
     if (result.outcome !== "done") process.exitCode = 1;
   } finally {
     await browser.close();

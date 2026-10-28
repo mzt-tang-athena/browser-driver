@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FakePlanner } from "../src/planner/fake.ts";
 import { FakeReflex } from "../src/reflex/fake.ts";
 import { ReflexLoop } from "../src/loop.ts";
-import type { Action, Observation, RunResult, StepRecord } from "../src/types.ts";
+import type { Action, Observation, Planner, ReflexProvider, RunResult, StepRecord } from "../src/types.ts";
 
 let browser: Browser;
 
@@ -33,7 +33,7 @@ class CaptureLog {
   }
 }
 
-async function run(page: Page, reflex: FakeReflex, planner: FakePlanner, maxSteps?: number): Promise<{ result: RunResult; log: CaptureLog }> {
+async function run(page: Page, reflex: ReflexProvider, planner: Planner, maxSteps?: number): Promise<{ result: RunResult; log: CaptureLog }> {
   const log = new CaptureLog();
   const loop = new ReflexLoop({ goal: "Order a latte", reflex, planner, page, log, maxSteps });
   return { result: await loop.run(), log };
@@ -198,5 +198,45 @@ describe("escalation constants", () => {
     expect(log.records[0]?.step).toBe(1);
     expect(log.records[1]?.step).toBe(1); // the verify belongs to the step it checked
     expect(log.records[1]?.kind).toBe("verify");
+  });
+
+  it("counts a planner failure as an idle answer", async () => {
+    const page = await freshPage();
+    const reflex = new FakeReflex({});
+    const failing: Planner = {
+      name: "failing-planner",
+      decide: async () => {
+        throw new Error("the model answered nonsense");
+      },
+      verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: null }),
+    };
+    const { result, log } = await run(page, reflex, failing);
+
+    expect(result.outcome).toBe("paused");
+    expect(result.reason).toContain("could not run");
+    const idles = log.records.filter((record) => record.kind === "idle");
+    expect(idles).toHaveLength(3);
+    expect(idles[0]?.text).toContain("planner failed");
+    expect(idles[0]?.action).toBeNull();
+  });
+
+  it("adds planner calls to the cost", async () => {
+    const page = await freshPage();
+    const reflex = new FakeReflex({});
+    let calls = 0;
+    const pricey: Planner = {
+      name: "pricey-planner",
+      decide: async (input) => {
+        calls += 1;
+        const text = calls % 2 === 1 ? "x" : "y";
+        return { action: { kind: "type", ref: nameRef(input.observation), text, label: "type into the name field" }, reason: "type", ms: 1, usage: null, costUsd: 0.25 };
+      },
+      verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: 0.5 }),
+    };
+    const { result } = await run(page, reflex, pricey, 2);
+
+    expect(result.outcome).toBe("max-steps");
+    expect(result.stats.planner.calls).toBe(2);
+    expect(result.stats.planner.costUsd).toBeCloseTo(0.5);
   });
 });

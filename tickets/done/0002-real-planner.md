@@ -38,4 +38,26 @@ needs. The guardrails move to ticket 0007.
 
 ## Outcome
 
-(filled in before moving to done/)
+Done on 2026-10-28, in one PR.
+
+- `ChatPlanner` runs on an OpenAI-compatible chat endpoint. The default is
+  the OpenCode Console chat model `glm-5.3-flash`, so it uses the same key
+  as the reflex.
+- Answers are one JSON object. Each action is validated against the page:
+  the ref must exist, a click must be in the menu, a select option must be
+  listed, a URL must resolve. A bad answer gets one retry, then counts as
+  an idle answer.
+- The planner handles click, type, select, goto, scroll, wait, done,
+  blocked, and human-input.
+- New `select` and `goto` action kinds. The actuator runs both, and the
+  eyes now carry select options.
+- Done verification is real. The demo finishes only after the chat model
+  confirms the success state.
+- Planner tokens and cost are logged. The live demo: 1 verify call,
+  5079 ms, $0.0001.
+- A planner failure or a failed verify is an idle answer, not the end of
+  the run. Three in a row pause the run.
+- 49 tests pass, with offline tests for every action shape and the error
+  paths.
+- Gap: the loop asks the planner only on low confidence, stuck, or repeat.
+  Proactive field filling needs its own phase, now ticket 0008.

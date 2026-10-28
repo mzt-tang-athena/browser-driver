@@ -33,6 +33,16 @@ export async function execute(page: Page, action: Action): Promise<void> {
       await locator.blur({ timeout: ACTION_TIMEOUT_MS }).catch(() => {});
       return undefined;
     }
+    case "select": {
+      const locator = page.locator(`aria-ref=${action.ref}`);
+      await locator.selectOption({ label: action.option }, { timeout: ACTION_TIMEOUT_MS });
+      return undefined;
+    }
+    case "goto": {
+      const url = new URL(action.url, page.url()).href;
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: ACTION_TIMEOUT_MS * 3 });
+      return undefined;
+    }
     case "scroll": {
       if (action.direction === "up") await page.mouse.wheel(0, -SCROLL_PIXELS);
       else await page.mouse.wheel(0, SCROLL_PIXELS);

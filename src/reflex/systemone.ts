@@ -3,7 +3,8 @@
 // for each option. Ported from the work repo's client. Runs against the TypeSafe cloud,
 // a local Ollama, or the OpenCode Console endpoint, by config alone.
 
-import { CHARS_PER_TOKEN, CONTEXT_MARGIN, HISTORY_FOR_REFLEX, MIN_OUTLINE_CHARS, REFLEX_CONTEXT_TOKENS, REFLEX_LINE_CHARS } from "../limits.ts";
+import { CHARS_PER_TOKEN, CONTEXT_MARGIN, MIN_OUTLINE_CHARS, REFLEX_CONTEXT_TOKENS } from "../limits.ts";
+import { buildState, cutOutline } from "../state.ts";
 import type { MenuItem, Observation, ReflexAnswer, ReflexAnswers, ReflexDecision, ReflexProvider, ReflexQuestions, Usage } from "../types.ts";
 import { allOptions, answersByName, nextActionQuestions, pickBest } from "./questions.ts";
 
@@ -27,27 +28,6 @@ const JEV_PRICES: Record<string, { inputPerMTok: number; outputPerMTok: number }
   "jev-1.13": { inputPerMTok: 0.042, outputPerMTok: 0 },
   "jev-1.13-free": { inputPerMTok: 0, outputPerMTok: 0 },
 };
-
-const shorten = (text: string, size: number): string => (text.length > size ? `${text.slice(0, size)}…` : text);
-
-/** The state text the model reads: goal, page, recent actions. */
-export function buildState(goal: string, observation: Observation, recentSteps: string[]): string {
-  const pageText = [
-    `Page: ${observation.title || "(no title)"} | ${observation.path}`,
-    observation.messages.length > 0 ? `Messages on the page:\n${observation.messages.map((message) => `- ${message}`).join("\n")}` : "",
-    `Page outline ([eN] marks an element the agent can use):\n${observation.outline}`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  const recent = recentSteps.slice(-HISTORY_FOR_REFLEX).map((line) => shorten(line, REFLEX_LINE_CHARS)).join("\n");
-  return [`Goal: ${goal}`, pageText, recent ? `Recent actions (oldest first):\n${recent}` : ""].filter(Boolean).join("\n\n");
-}
-
-export function cutOutline(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
-  const cut = text.slice(0, maxChars);
-  return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}\n... (page cut to fit the model's context)`;
-}
 
 // The outline is cut so the state and the longest question fit the model's context.
 // Each question runs as its own sequence, so the longest question counts, not all of them together.

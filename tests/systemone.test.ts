@@ -10,7 +10,7 @@ const observation: Observation = {
   title: "Test page",
   outline: '- button "Go" [ref=e1]',
   fullOutline: '- button "Go" [ref=e1]',
-  elements: [{ ref: "e1", role: "button", name: "Go", kind: "click", url: null, disabled: false, checked: null }],
+  elements: [{ ref: "e1", role: "button", name: "Go", kind: "click", options: [], url: null, disabled: false, checked: null }],
   menu: [{ id: "e1", label: 'click button "Go"', ref: "e1", role: "button" }],
   messages: [],
   fingerprint: "abc",

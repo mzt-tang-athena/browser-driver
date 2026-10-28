@@ -91,6 +91,20 @@ describe("execute", () => {
     await settle(page);
   });
 
+  it("selects an option by label", async () => {
+    const ref = (await observe(page)).elements.find((element) => element.role === "combobox")?.ref as string;
+    await execute(page, { kind: "select", ref, option: "Latte", label: "combobox" });
+    expect(await page.locator("#drink").inputValue()).toBe("Latte");
+  });
+
+  it("opens a URL", async () => {
+    const other = await browser.newPage();
+    await other.goto("about:blank");
+    await execute(other, { kind: "goto", url: "data:text/html,<p>hello</p>", label: "open the page" });
+    expect(other.url()).toContain("data:text/html");
+    await other.close();
+  });
+
   it("refuses the run-ending kinds", async () => {
     await expect(execute(page, { kind: "done", reason: "no" })).rejects.toThrow(/ends the run/);
     await expect(execute(page, { kind: "human-input", ask: "no" })).rejects.toThrow(/ends the run/);
