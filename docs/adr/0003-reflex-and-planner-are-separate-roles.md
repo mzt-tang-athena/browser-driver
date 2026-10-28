@@ -9,7 +9,7 @@ Routine decisions ("which button to click") are frequent, cheap, and
 narrow. Planning, writing text, and verifying the goal are rare, costly,
 and open-ended. One model for both is slow and costly. Jev (TypeSafe
 API) fits the reflex role. A general model fits the planner role. The
-work repo hnry-drive already runs a Jev-compatible endpoint on Ollama,
+work repo already runs a Jev-compatible endpoint on Ollama,
 so the reflex API shape has a local implementation too.
 
 ## Decision

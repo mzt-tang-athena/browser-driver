@@ -1,11 +1,11 @@
-# 0005. The loop ports hnry-drive's tested limits and gains a human-input action
+# 0005. The loop ports tested limits and gains a human-input action
 
 - **Status:** accepted
 - **Date:** 2026-10-20
 
 ## Context
 
-Ticket 0001 bootstraps the reflex loop. The work repo `michaeltang-hnry/hnry-drive`
+Ticket 0001 bootstraps the reflex loop. A private work repo
 runs a similar loop in production. Its constants are tested: at most 24 options
 per choice question, menu parts with an escape option, labels cut at 90
 characters, stuck escalate at 2 and pause at 4, repeat window 10 with escalate
@@ -22,19 +22,19 @@ loop logic around them from `lib/agent.mjs`: stuck steps, repeat counting, the
 one-chance repeat challenge for planner answers, and the verify cooldown.
 
 The eyes use Playwright's AI-mode aria snapshot. The actuator locates elements
-with the snapshot refs (`aria-ref=e12`). We port the parser from hnry-drive.
+with the snapshot refs (`aria-ref=e12`). We port the parser from the work repo.
 
-We add one action kind hnry-drive does not have: `human-input`. When the agent
+We add one action kind the work repo does not have: `human-input`. When the agent
 needs a person, the loop logs the request and ends the run with the outcome
 `needs-human-input`. We reject blocking and polling for now, because no
 interactive harness exists yet.
 
 The reflex only picks menu items, so it can only produce clicks. The planner
-writes all text. We defer hnry-drive's field-value questions (`mapFields`),
+writes all text. We defer the work repo's field-value questions (`mapFields`),
 because the bootstrap has no test values to offer the model.
 
 The reflex state cuts the page outline once, to a character budget from the
-8192-token context guess. We defer hnry-drive's per-question token fitting and
+8192-token context guess. We defer the work repo's per-question token fitting and
 retry, until we know the cloud API's usage reporting.
 
 ## Consequences

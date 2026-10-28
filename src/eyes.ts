@@ -36,7 +36,7 @@ function verb(element: PageElement): string {
 const shortLabel = (label: string): string => (label.length > LABEL_CHARS ? `${label.slice(0, LABEL_CHARS)}…` : label);
 
 // Clicking a radio that is already chosen does nothing, so it only distracts the model.
-// A mailto link opens a mail client, so it never helps the run. Ported from hnry-drive.
+// A mailto link opens a mail client, so it never helps the run. Ported from the work repo.
 function excluded(element: PageElement): boolean {
   if (element.disabled) return true;
   if (element.kind !== "click") return true;

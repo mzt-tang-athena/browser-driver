@@ -1,4 +1,4 @@
-// Tests for the ported question building (hnry-drive lib/systemone.mjs patterns):
+// Tests for the ported question building (the work repo's lib/systemone.mjs patterns):
 // max 24 options per choice question, menu chunking with an "other" escape option,
 // 90 char label truncation.
 

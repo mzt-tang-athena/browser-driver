@@ -24,7 +24,7 @@ Before the visibility change:
 
 ## Acceptance
 
-- [ ] No `hnry-drive` or `michaeltang-hnry` string in the repo
+- [ ] No name of the private work repo anywhere in the repo
 - [ ] No secrets in the working tree or the history
 - [ ] The repository is public
 - [ ] CI checks run and pass on the open PRs

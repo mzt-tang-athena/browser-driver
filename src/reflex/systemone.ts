@@ -1,6 +1,6 @@
 // The reflex implementation: the Jev-compatible /v1/systemone contract (ADR 0003).
 // A decision model only picks from the options it is given and returns a probability
-// for each option. Ported from hnry-drive's client. Runs against the TypeSafe cloud,
+// for each option. Ported from the work repo's client. Runs against the TypeSafe cloud,
 // a local Ollama, or the OpenCode Console endpoint, by config alone.
 
 import { CHARS_PER_TOKEN, CONTEXT_MARGIN, HISTORY_FOR_REFLEX, MIN_OUTLINE_CHARS, REFLEX_CONTEXT_TOKENS, REFLEX_LINE_CHARS } from "../limits.ts";
@@ -51,7 +51,7 @@ export function cutOutline(text: string, maxChars: number): string {
 
 // The outline is cut so the state and the longest question fit the model's context.
 // Each question runs as its own sequence, so the longest question counts, not all of them together.
-// The goal comes first and is never cut. Ported from hnry-drive's fittedDeciderState.
+// The goal comes first and is never cut. Ported from the work repo's fittedDeciderState.
 function fittedState(goal: string, observation: Observation, recentSteps: string[], questions: ReflexQuestions): string {
   const questionLengths = Object.values(questions).map((question) => JSON.stringify(question).length);
   const budget = Math.floor(REFLEX_CONTEXT_TOKENS * CHARS_PER_TOKEN * CONTEXT_MARGIN);
