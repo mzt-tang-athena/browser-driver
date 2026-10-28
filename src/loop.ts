@@ -5,7 +5,7 @@
 import { execute, settle } from "./actuator.ts";
 import { observe } from "./eyes.ts";
 import { CONFIDENCE_THRESHOLD, DONE_PROBABILITY, IDLE_ANSWERS_PAUSE, MAX_STEPS, REPEAT_ESCALATE, REPEAT_PAUSE, REPEAT_WINDOW, STUCK_ESCALATE, STUCK_PAUSE, VERIFY_COOLDOWN_STEPS } from "./limits.ts";
-import type { Action, Observation, Planner, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
+import type { Action, Observation, Planner, PlannerDecision, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
 
 export interface LoopOptions {
   goal: string;
@@ -30,6 +30,10 @@ export function describeAction(action: Action): string {
   switch (action.kind) {
     case "type":
       return `type "${action.text}" into ${action.label}`;
+    case "select":
+      return `select "${action.option}" in ${action.label}`;
+    case "goto":
+      return `open ${action.url}`;
     case "scroll":
       return `scroll ${action.direction}`;
     case "wait":
@@ -115,7 +119,14 @@ export class ReflexLoop {
       if (this.verifyCooldown > 0) {
         this.verifyCooldown -= 1;
       } else if (decision.doneProbability >= (this.options.doneThreshold ?? DONE_PROBABILITY)) {
-        await this.verify(observation, decision);
+        try {
+          await this.verify(observation, decision);
+        } catch (error) {
+          // A verify that cannot run is an idle answer, not the end of the run.
+          const text = `verify failed: ${firstLine(error instanceof Error ? error.message : String(error))}`;
+          this.idle(observation, decision, null, text, "The planner could not verify the goal. Asking again.");
+          return;
+        }
         if (this.outcome) return;
       }
       const choice = decision.choice;
@@ -132,21 +143,30 @@ export class ReflexLoop {
 
     const reason = this.forcedReason ?? "The planner decides this run.";
     this.forcedReason = null;
-    const pick = await this.options.planner.decide({ goal: this.options.goal, observation, recentSteps: this.recentSteps(), reason });
+    let pick: PlannerDecision;
+    try {
+      pick = await this.options.planner.decide({ goal: this.options.goal, observation, recentSteps: this.recentSteps(), reason });
+    } catch (error) {
+      // A model or format failure is an idle answer, not the end of the run.
+      const text = `planner failed: ${firstLine(error instanceof Error ? error.message : String(error))}`;
+      this.idle(observation, decision, null, text, "The planner failed. Asking again.");
+      return;
+    }
     this.stats.planner.calls += 1;
     this.stats.planner.ms += pick.ms;
+    this.stats.planner.costUsd += pick.costUsd ?? 0;
 
     if (pick.action.kind === "done") return this.finishWithRecord(observation, decision, pick.action, this.options.planner.name, "goal reached", pick.action.reason);
     if (pick.action.kind === "blocked") return this.finishWithRecord(observation, decision, pick.action, this.options.planner.name, "blocked", pick.action.reason);
     if (pick.action.kind === "human-input") return this.finishWithRecord(observation, decision, pick.action, this.options.planner.name, "needs human input", pick.action.ask);
 
-    // A click or type on an element that is not on the page runs nothing. That is an idle answer.
+    // A click, type, or select on an element that is not on the page runs nothing. That is an idle answer.
     const refOk = (action: Action): boolean => {
-      if (action.kind !== "click" && action.kind !== "type") return true;
+      if (action.kind !== "click" && action.kind !== "type" && action.kind !== "select") return true;
       return observation.elements.some((element) => element.ref === action.ref);
     };
     if (!refOk(pick.action)) {
-      this.idle(observation, decision, pick.action, `The planner answered with something the agent could not run (${JSON.stringify(pick.action)}).`);
+      this.idle(observation, decision, pick.action, describeAction(pick.action), `The planner answered with something the agent could not run (${JSON.stringify(pick.action)}).`);
       return;
     }
 
@@ -156,7 +176,7 @@ export class ReflexLoop {
     if (this.triedFrom(observation, text) && this.challengedRepeat !== repeatKey) {
       this.challengedRepeat = repeatKey;
       this.forcedReason = `You chose "${text}", which was already done from this page state and did not help. Choose something else, or choose it again only if you are sure it is right now.`;
-      this.idle(observation, decision, pick.action, "The planner repeated an action that did not help. Asking again.");
+      this.idle(observation, decision, pick.action, text, "The planner repeated an action that did not help. Asking again.");
       return;
     }
     await this.act(observation, pick.action, decision, this.options.planner.name, null);
@@ -164,9 +184,8 @@ export class ReflexLoop {
 
   // A planner answer that runs nothing moves the run nowhere. A few in a row need a human.
   // Every idle answer is logged, so the step log shows the dead ends too.
-  private idle(observation: Observation, decision: ReflexDecision | null, action: Action, note: string): void {
+  private idle(observation: Observation, decision: ReflexDecision | null, action: Action | null, text: string, note: string): void {
     this.idleAnswers += 1;
-    const text = describeAction(action);
     this.write({
       step: this.step,
       kind: "idle",
@@ -196,6 +215,7 @@ export class ReflexLoop {
     const answer = await this.options.planner.verify({ goal: this.options.goal, observation });
     this.stats.planner.calls += 1;
     this.stats.planner.ms += answer.ms;
+    this.stats.planner.costUsd += answer.costUsd ?? 0;
     this.write({
       step: this.step,
       kind: "verify",

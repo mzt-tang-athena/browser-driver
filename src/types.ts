@@ -11,6 +11,8 @@ export interface PageElement {
   name: string;
   /** How the actuator can use the element. */
   kind: ElementKind;
+  /** Options of a select element, in page order. Empty for other roles. */
+  options: string[];
   /** Link target, for links. */
   url: string | null;
   disabled: boolean;
@@ -49,6 +51,8 @@ export interface Observation {
 export type Action =
   | { kind: "click"; ref: string; role?: string; label: string }
   | { kind: "type"; ref: string; text: string; label: string }
+  | { kind: "select"; ref: string; option: string; label: string }
+  | { kind: "goto"; url: string; label: string }
   | { kind: "scroll"; direction: "up" | "down"; label: string }
   | { kind: "wait"; label: string }
   | { kind: "done"; reason: string }
@@ -129,12 +133,17 @@ export interface PlannerDecision {
   action: Action;
   reason: string;
   ms: number;
+  usage: Usage | null;
+  /** Known cost of this call in US dollars. Null when the pricing is unknown. */
+  costUsd: number | null;
 }
 
 export interface PlannerVerify {
   done: boolean;
   reason: string;
   ms: number;
+  usage: Usage | null;
+  costUsd: number | null;
 }
 
 export interface Planner {

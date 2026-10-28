@@ -72,6 +72,7 @@ export async function observe(page: Page): Promise<Observation> {
     role: element.role,
     name: shortLabel(element.name),
     kind: kindOf(element.role),
+    options: element.options,
     url: element.url,
     disabled: element.disabled,
     checked: element.checked,
