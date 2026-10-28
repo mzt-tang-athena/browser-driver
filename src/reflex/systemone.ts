@@ -87,7 +87,13 @@ export class SystemOneReflex implements ReflexProvider {
     });
     const text = await response.text();
     if (!response.ok) throw new Error(`TypeSafe ${this.model} answered HTTP ${response.status}: ${text.slice(0, 300)}`);
-    const body = JSON.parse(text) as unknown;
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // A proxy or a maintenance page can answer 200 with HTML. Name it instead of failing on the parse.
+      throw new Error(`TypeSafe ${this.model} answered with a body that is not JSON: ${text.slice(0, 200)}`);
+    }
     return { answers: answersByName(body, Object.keys(questions)), usage: (body as { usage?: Usage }).usage ?? null, ms: Date.now() - started };
   }
 

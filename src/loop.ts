@@ -54,6 +54,7 @@ export class ReflexLoop {
     planner: { calls: 0, ms: 0, costUsd: 0 },
   };
   private step = 0;
+  private seq = 0;
   private noChange = 0;
   private idleAnswers = 0;
   private verifyCooldown = 0;
@@ -84,6 +85,15 @@ export class ReflexLoop {
   private finish(outcome: RunResult["outcome"], reason: string): void {
     this.outcome ??= outcome;
     this.outcomeReason ??= reason;
+  }
+
+  // Every logged event gets its own record number. A verify or an idle answer can
+  // share the current action step, so the step number alone is not unique.
+  private write(record: Omit<StepRecord, "seq">): void {
+    this.seq += 1;
+    const entry: StepRecord = { seq: this.seq, ...record };
+    this.steps.push(entry);
+    this.options.log.write(entry);
   }
 
   private recentSteps(): string[] {
@@ -136,7 +146,7 @@ export class ReflexLoop {
       return observation.elements.some((element) => element.ref === action.ref);
     };
     if (!refOk(pick.action)) {
-      this.idle(pick.action, `The planner answered with something the agent could not run (${JSON.stringify(pick.action)}).`);
+      this.idle(observation, decision, pick.action, `The planner answered with something the agent could not run (${JSON.stringify(pick.action)}).`);
       return;
     }
 
@@ -146,16 +156,37 @@ export class ReflexLoop {
     if (this.triedFrom(observation, text) && this.challengedRepeat !== repeatKey) {
       this.challengedRepeat = repeatKey;
       this.forcedReason = `You chose "${text}", which was already done from this page state and did not help. Choose something else, or choose it again only if you are sure it is right now.`;
-      this.idle(pick.action, "The planner repeated an action that did not help. Asking again.");
+      this.idle(observation, decision, pick.action, "The planner repeated an action that did not help. Asking again.");
       return;
     }
     await this.act(observation, pick.action, decision, this.options.planner.name, null);
   }
 
   // A planner answer that runs nothing moves the run nowhere. A few in a row need a human.
-  private idle(action: Action, note: string): void {
+  // Every idle answer is logged, so the step log shows the dead ends too.
+  private idle(observation: Observation, decision: ReflexDecision | null, action: Action, note: string): void {
     this.idleAnswers += 1;
-    this.history.push({ step: this.step, text: describeAction(action), result: note });
+    const text = describeAction(action);
+    this.write({
+      step: this.step,
+      kind: "idle",
+      goal: this.options.goal,
+      source: this.options.planner.name,
+      probability: null,
+      path: observation.path,
+      fingerprint: observation.fingerprint,
+      elements: observation.elements,
+      menu: observation.menu,
+      questions: decision?.request.questions ?? null,
+      answers: decision?.answers ?? null,
+      options: decision?.options ?? [],
+      action,
+      text,
+      result: note,
+      pageAfter: { url: observation.url, title: observation.title, outline: observation.outline },
+      ms: 0,
+    });
+    this.history.push({ step: this.step, text, result: note });
     if (this.idleAnswers < IDLE_ANSWERS_PAUSE) return;
     this.finish("paused", `The planner gave ${this.idleAnswers} answers in a row that the agent could not run.`);
     this.idleAnswers = 0;
@@ -165,7 +196,7 @@ export class ReflexLoop {
     const answer = await this.options.planner.verify({ goal: this.options.goal, observation });
     this.stats.planner.calls += 1;
     this.stats.planner.ms += answer.ms;
-    const record: StepRecord = {
+    this.write({
       step: this.step,
       kind: "verify",
       goal: this.options.goal,
@@ -183,9 +214,7 @@ export class ReflexLoop {
       result: answer.done ? `done: ${answer.reason}` : `not yet: ${answer.reason}`,
       pageAfter: { url: observation.url, title: observation.title, outline: observation.outline },
       ms: answer.ms,
-    };
-    this.steps.push(record);
-    this.options.log.write(record);
+    });
     if (answer.done) {
       this.finish("done", answer.reason);
       return;
@@ -195,7 +224,7 @@ export class ReflexLoop {
   }
 
   private finishWithRecord(observation: Observation, decision: ReflexDecision | null, action: Action, source: string, result: string, reason: string): void {
-    const record: StepRecord = {
+    this.write({
       step: this.step,
       kind: "action",
       goal: this.options.goal,
@@ -213,9 +242,7 @@ export class ReflexLoop {
       result: `${result}: ${reason}`,
       pageAfter: { url: observation.url, title: observation.title, outline: observation.outline },
       ms: 0,
-    };
-    this.steps.push(record);
-    this.options.log.write(record);
+    });
     this.history.push({ step: this.step, text: describeAction(action), result });
     this.finish(action.kind === "done" ? "done" : action.kind === "blocked" ? "blocked" : "needs-human-input", reason);
   }
@@ -254,7 +281,7 @@ export class ReflexLoop {
     if (repeats >= REPEAT_PAUSE) this.finish("paused", `The agent is looping: it did "${text}" ${repeats} times on ${observation.path}.`);
     else if (repeats >= REPEAT_ESCALATE) this.forcedReason ??= `"${text}" was done ${repeats} times on this page without reaching the goal. Do something different, or ask for human input.`;
 
-    const record: StepRecord = {
+    this.write({
       step: this.step,
       kind: "action",
       goal: this.options.goal,
@@ -272,9 +299,7 @@ export class ReflexLoop {
       result,
       pageAfter: { url: after.url, title: after.title, outline: after.outline },
       ms: Date.now() - started,
-    };
-    this.steps.push(record);
-    this.options.log.write(record);
+    });
     this.history.push({ step: this.step, text, result });
     this.idleAnswers = 0;
   }
