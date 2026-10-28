@@ -1,6 +1,6 @@
 // The reflex loop: observe, ask the reflex, act, escalate to the planner, verify.
-// Ported from michaeltang-hnry/hnry-drive (lib/agent.mjs takeStep, act, record),
-// with the hnry-drive escalation constants from src/limits.ts.
+// Ported from the work repo (lib/agent.mjs takeStep, act, record),
+// with the work repo escalation constants from src/limits.ts.
 
 import { execute, settle } from "./actuator.ts";
 import { observe } from "./eyes.ts";
@@ -275,7 +275,7 @@ export class ReflexLoop {
     else if (this.noChange >= STUCK_ESCALATE) this.forcedReason = `The last ${this.noChange} actions changed nothing. Try a different approach.`;
 
     // Repeats are counted separately from stuck steps: a page can change on every try.
-    // The count includes the action just run, like hnry-drive counts after it pushed the step.
+    // The count includes the action just run, like the work repo counts after it pushed the step.
     const windowStart = Math.max(0, this.steps.length - REPEAT_WINDOW + 1);
     const repeats = this.steps.slice(windowStart).filter((entry) => entry.kind === "action" && entry.path === observation.path && entry.text === text).length + 1;
     if (repeats >= REPEAT_PAUSE) this.finish("paused", `The agent is looping: it did "${text}" ${repeats} times on ${observation.path}.`);

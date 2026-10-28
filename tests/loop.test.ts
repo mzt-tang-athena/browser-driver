@@ -83,7 +83,7 @@ describe("escalation constants", () => {
     expect(result.outcome).toBe("paused");
     expect(result.reason).toContain("stuck");
     expect(result.stats.reflex.calls).toBe(2); // steps 1 and 2, then the planner decides
-    // 4 planner calls, not 2: the planner's repeated "wait" is challenged once (hnry-drive's
+    // 4 planner calls, not 2: the planner's repeated "wait" is challenged once (the work repo's
     // repeat challenge) and trusted on its second try, and every answer is one call.
     expect(result.stats.planner.calls).toBe(4);
   });

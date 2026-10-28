@@ -1,4 +1,4 @@
-// Ported from michaeltang-hnry/hnry-drive (lib/systemone.mjs, lib/agent.mjs).
+// Ported from the work repo (lib/systemone.mjs, lib/agent.mjs).
 // These limits are tested in production there. Do not tune them here without a reason.
 
 /** A decision model rates at most 24 candidates in one choice question. More answers HTTP 400. */
@@ -34,7 +34,7 @@ export const DONE_PROBABILITY = 0.9;
 export const HISTORY_FOR_REFLEX = 3;
 export const REFLEX_LINE_CHARS = 100;
 export const REFLEX_CONTEXT_TOKENS = 8192;
-/** Starting guess. One token is about 1.7 characters on hnry pages. */
+/** Starting guess. One token is about 1.7 characters on the work app's pages. */
 export const CHARS_PER_TOKEN = 1.6;
 export const CONTEXT_MARGIN = 0.9;
 export const MIN_OUTLINE_CHARS = 300;

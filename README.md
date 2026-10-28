@@ -42,6 +42,6 @@ human-input action. Read 0006 for where the live reflex runs.
 ## Related
 
 - `mzt-tang-athena/contracts`: shared schemas, one package per domain
-- `michaeltang-hnry/hnry-drive`: the work sibling. We port its tested
-  constants and patterns: menu chunking at 24 options, escalation
-  thresholds, flow recording with stable locators, per-run stats
+- A private work repo: the work sibling. We port its tested constants
+  and patterns: menu chunking at 24 options, escalation thresholds, flow
+  recording with stable locators, per-run stats

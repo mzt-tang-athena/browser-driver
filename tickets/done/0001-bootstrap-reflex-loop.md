@@ -20,11 +20,11 @@ Steps:
 3. Implement the TypeSafe cloud reflex provider
    (`POST https://api.typesafe.ai/v1/systemone`).
 4. Implement the eyes: Playwright accessibility snapshot to a numbered
-   element list. Follow the hnry-drive limits: max 24 options per choice
+   element list. Follow the work repo limits: max 24 options per choice
    question, labels truncated at 90 chars, escape option per chunk.
 5. Implement the actuator: click, type, scroll, wait, done, blocked,
    human-input (new action type).
-6. Wire the loop with the hnry-drive constants: escalate after 2 stuck
+6. Wire the loop with the work repo constants: escalate after 2 stuck
    steps, repeat window 10, idle answers pause after 3, verify cooldown
    3 steps.
 7. Log every step fully: element list, questions, answers, confidences,
@@ -44,7 +44,7 @@ Done on 2026-10-20, in one PR. All eight steps are in.
   with a bearer key. The key is pending, so `.env.example` holds a
   placeholder and the demo runs the fake. The live API path is untested
   until the key arrives.
-- Eyes: AI-mode aria snapshot parser (ported from hnry-drive), numbered
+- Eyes: AI-mode aria snapshot parser (ported from the work repo), numbered
   element list, click menu with the 24-option chunk limit, the "other"
   escape option, and 90-char labels.
 - Actuator: click, type, scroll, wait, done, blocked, and the new

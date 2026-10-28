@@ -1,5 +1,5 @@
 // Parses the Playwright AI-mode aria snapshot (page.ariaSnapshot({ mode: "ai" })) into a tree.
-// Ported from michaeltang-hnry/hnry-drive (lib/snapshot.mjs), with types added.
+// Ported from the work repo (lib/snapshot.mjs), with types added.
 
 export interface SnapshotNode {
   role: string;

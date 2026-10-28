@@ -1,4 +1,4 @@
-// The actuator: run one action in the browser. Ported from hnry-drive (lib/actions.mjs),
+// The actuator: run one action in the browser. Ported from the work repo (lib/actions.mjs),
 // with scroll added and the human-input kind handled by the loop, not the browser.
 
 import type { Page } from "playwright";

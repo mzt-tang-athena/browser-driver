@@ -1,5 +1,5 @@
 // Builds the choice questions the reflex answers, and reads its answers back.
-// Ported from michaeltang-hnry/hnry-drive (lib/systemone.mjs), with types added.
+// Ported from the work repo (lib/systemone.mjs), with types added.
 
 import { LABEL_CHARS, MAX_MENU_PARTS, MAX_OPTIONS, OTHER } from "../limits.ts";
 import type { MenuItem, ReflexAnswer, ReflexAnswers, ReflexQuestions } from "../types.ts";

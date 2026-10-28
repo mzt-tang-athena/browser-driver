@@ -1,4 +1,4 @@
-// Tests for the ported snapshot parser (hnry-drive lib/snapshot.mjs patterns).
+// Tests for the ported snapshot parser (the work repo's lib/snapshot.mjs patterns).
 
 import { describe, expect, it } from "vitest";
 import { describeElement, interactiveElements, messages, outline, parseSnapshot } from "../src/snapshot.ts";
