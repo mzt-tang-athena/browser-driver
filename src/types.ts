@@ -150,9 +150,12 @@ export interface Planner {
  * what it did, and what the page looked like after.
  */
 export interface StepRecord {
+  /** Monotonic record number. Unique per run, one per logged event. */
+  seq: number;
+  /** The action step this record belongs to. Verify and idle records share the current step. */
   step: number;
-  /** "action" is a browser action. "verify" is a planner verify call. */
-  kind: "action" | "verify";
+  /** "action" is a browser action. "verify" is a planner verify call. "idle" is an answer the loop could not run. */
+  kind: "action" | "verify" | "idle";
   goal: string;
   /** Reflex or planner name that decided the step. */
   source: string;

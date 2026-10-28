@@ -40,7 +40,7 @@ export class StepLog {
 
   private printBlock(record: StepRecord): void {
     const chooser = record.probability == null ? record.source : `${record.source} ${pct(record.probability)}`;
-    this.print(`step ${record.step}  [${chooser}]  ${record.text}`);
+    this.print(`record ${record.seq} (step ${record.step})  [${chooser}]  ${record.text}`);
     this.print(`  -> ${record.result}`);
 
     this.print(`  elements on ${record.path} (${record.elements.length}):`);

@@ -40,4 +40,18 @@ real planner and guardrails (ticket 0002), the service and event schema
 
 ## Outcome
 
-(filled in before moving to done/)
+Done on 2026-10-28, in one PR.
+
+- CI now has a checks job: Node 24, `npm ci`, Chromium, typecheck, and
+  the full test suite. The docs job stays.
+- Every step log record has a `seq`. Verify and idle records keep the
+  action `step` they belong to, so the log no longer shows a step twice.
+- Idle planner answers are logged as `idle` records with the page they
+  happened on.
+- A reflex body that is not JSON fails with a clear message, and an HTTP
+  error names its status.
+- `engines` now says Node 24 or newer, matching the built-in sqlite use.
+- New tests: repeat escalation and the repeat pause, idle records,
+  record sequence numbers, and the reflex error paths. 36 tests pass.
+- The remaining review items move to their tickets: planner, select and
+  open-URL actions, and log redaction in 0002; the service in 0003.

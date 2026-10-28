@@ -92,11 +92,15 @@ describe("escalation constants", () => {
     const page = await freshPage();
     const reflex = new FakeReflex({});
     const planner = new FakePlanner({ decide: (): Action => ({ kind: "click", ref: "e999", label: "click a button that is not there" }) });
-    const { result } = await run(page, reflex, planner);
+    const { result, log } = await run(page, reflex, planner);
 
     expect(result.outcome).toBe("paused");
     expect(result.reason).toContain("could not run");
     expect(result.stats.planner.calls).toBe(3);
+    // The dead ends are in the step log too, not only in the history.
+    const idles = log.records.filter((record) => record.kind === "idle");
+    expect(idles).toHaveLength(3);
+    expect(idles[0]?.result).toContain("could not run");
   });
 
   it("ends with needs-human-input when the planner asks a person", async () => {
@@ -160,5 +164,39 @@ describe("escalation constants", () => {
     // The cooldown steps need at least one planner answer each; the repeat challenge can add more.
     expect(decides).toBeGreaterThanOrEqual(3);
     expect(log.records.filter((record) => record.kind === "verify").map((record) => record.result)).toEqual(["not yet: nothing is ordered yet", "done: confirmed now"]);
+  });
+
+  it("escalates repeats to the planner, then pauses when the same action keeps coming", async () => {
+    const page = await freshPage();
+    const reflex = new FakeReflex({ rules: [{ pick: /extra shot/i, confidence: 0.95 }] });
+    const checkboxRef = (observation: Observation): string => {
+      const ref = observation.elements.find((element) => element.name === "Extra shot")?.ref;
+      if (!ref) throw new Error("the checkbox is missing from the observation");
+      return ref;
+    };
+    const planner = new FakePlanner({
+      decide: (input): Action => ({ kind: "click", ref: checkboxRef(input.observation), role: "checkbox", label: "toggle checkbox \"Extra shot\"" }),
+    });
+    const { result, log } = await run(page, reflex, planner);
+
+    // The checkbox toggles, so the page changes every time and the stuck limits never fire.
+    // Only the repeat window can catch this loop.
+    expect(result.outcome).toBe("paused");
+    expect(result.reason).toContain("looping");
+    expect(log.records.filter((record) => record.kind === "action")).toHaveLength(5);
+    expect(result.stats.planner.calls).toBeGreaterThanOrEqual(4);
+  });
+
+  it("gives every record its own sequence number", async () => {
+    const page = await freshPage();
+    const reflex = new FakeReflex({ rules: [{ when: /latte ordered/i, done: 0.95 }, { pick: /order latte/i }] });
+    const planner = new FakePlanner({ verify: () => ({ done: true, reason: "confirmed" }) });
+    const { log } = await run(page, reflex, planner);
+
+    const seqs = log.records.map((record) => record.seq);
+    expect(seqs).toEqual([1, 2]);
+    expect(log.records[0]?.step).toBe(1);
+    expect(log.records[1]?.step).toBe(1); // the verify belongs to the step it checked
+    expect(log.records[1]?.kind).toBe("verify");
   });
 });
