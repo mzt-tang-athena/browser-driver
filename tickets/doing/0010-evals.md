@@ -3,7 +3,7 @@ id: 0010
 title: Evals: measure whether real goals finish
 created: 2026-10-29
 priority: high
-assignee:
+assignee: opencode
 pr:
 depends: [0011]
 ---
