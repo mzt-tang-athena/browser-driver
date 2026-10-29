@@ -34,8 +34,11 @@ agents faster and cheaper by about ten times.
   `OPENCODE_API_KEY` in `.env`, or the local OpenCode credential store
   (see `.env.example` and ADR 0006). Without a key both run as test fakes
 - `--reflex=fake` and `--planner=fake` force either fake
-- The demo proves the loop. Real goals need ticket 0007 (guardrails) and
-  ticket 0008 (field filling) first
+- The loop has guardrails. An allowlist bounds navigation, an approval gate
+  pauses before an irreversible action, and step and cost caps stop a run.
+  The step log masks typed values (ADR 0009). The service in ticket 0003
+  turns on the gate and the allowlist
+- Real goals need the service (ticket 0003) and the CLI (ticket 0009)
 
 ## Decisions
 
@@ -43,7 +46,8 @@ See `docs/adr/`. Start with 0001 (TypeScript), 0002 (driver as a
 service), 0003 (reflex and planner roles), 0004 (event schema in the
 contracts repo). Read 0005 for the loop's ported limits and the
 human-input action. Read 0006 for where the live reflex runs. Read 0007
-for the eval shape and 0008 for the driver port.
+for the eval shape and 0008 for the driver port. Read 0009 for the log
+masking rule.
 
 ## Related
 

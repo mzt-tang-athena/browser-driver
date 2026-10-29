@@ -1,7 +1,7 @@
 // Test fake for the ReflexProvider interface (ADR 0003: one implementation never stands
 // alone as proof of the contract). It follows rules instead of a model.
 
-import type { Observation, ReflexDecision, ReflexProvider, ReflexQuestions } from "../types.ts";
+import type { NoulAnswer, Observation, ReflexDecision, ReflexProvider, ReflexQuestions } from "../types.ts";
 import { nextActionQuestions } from "./questions.ts";
 
 /** A "when" rule answers the goal question when the page text matches. */
@@ -12,6 +12,8 @@ export type FakeRule =
 export interface FakeReflexOptions {
   rules?: FakeRule[];
   name?: string;
+  /** The probability for a yes/no gate question. Default 0. */
+  askNoul?: (input: { state: string; instructions: string }) => number;
 }
 
 const DEFAULT_CONFIDENCE = 0.92;
@@ -19,9 +21,11 @@ const DEFAULT_CONFIDENCE = 0.92;
 export class FakeReflex implements ReflexProvider {
   readonly name: string;
   private readonly rules: FakeRule[];
+  private readonly askNoulRule: ((input: { state: string; instructions: string }) => number) | null;
 
   constructor(options: FakeReflexOptions = {}) {
     this.rules = options.rules ?? [];
+    this.askNoulRule = options.askNoul ?? null;
     this.name = options.name ?? "fake-reflex";
   }
 
@@ -42,6 +46,15 @@ export class FakeReflex implements ReflexProvider {
       costUsd: null,
       request: { state: `FakeReflex read:\n${pageText}`, questions },
       answers: {},
+    };
+  }
+
+  async askNoul(input: { state: string; instructions: string }): Promise<NoulAnswer> {
+    return {
+      probability: this.askNoulRule ? this.askNoulRule(input) : 0,
+      ms: 0,
+      usage: null,
+      costUsd: null,
     };
   }
 }

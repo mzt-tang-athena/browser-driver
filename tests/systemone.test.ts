@@ -52,4 +52,16 @@ describe("SystemOneReflex errors", () => {
     // Unknown model means unknown price. The real models carry their Console price.
     expect(decision.costUsd).toBeNull();
   });
+
+  it("asks a yes or no gate question and prices it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(JSON.stringify({ answers: { gate: { noul: 0.8 } }, usage: { input_tokens: 1000, output_tokens: 0 } }), { status: 200 }),
+    );
+    const priced = new SystemOneReflex({ apiKey: "test-key", model: "jev-1.13", endpoint: "https://example.invalid/v1/systemone" });
+    const answer = await priced.askNoul({ state: "Action: pay the invoice", instructions: "Is it irreversible?" });
+    expect(answer.probability).toBe(0.8);
+    expect(answer.costUsd).toBeCloseTo(0.000042, 8);
+  });
 });
