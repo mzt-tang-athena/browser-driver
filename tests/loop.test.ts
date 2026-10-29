@@ -1,30 +1,14 @@
-// Tests for the reflex loop: the done path, every escalation constant, and the
-// full step record (ticket 0001 steps 6 to 8).
+// Tests for the reflex loop. The browser is a scripted FakeDriver, so these
+// tests are fast and need no Chromium. PlaywrightDriver has its own browser test.
 
-import { chromium, type Browser, type Page } from "playwright";
-import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { Driver } from "../src/driver/driver.ts";
+import { ReflexLoop } from "../src/loop.ts";
 import { FakePlanner } from "../src/planner/fake.ts";
 import { FakeReflex } from "../src/reflex/fake.ts";
-import { ReflexLoop } from "../src/loop.ts";
-import type { Action, Observation, Planner, ReflexProvider, RunResult, StepRecord } from "../src/types.ts";
-
-let browser: Browser;
-
-beforeAll(async () => {
-  browser = await chromium.launch();
-});
-
-afterAll(async () => {
-  await browser.close();
-});
-
-async function freshPage(): Promise<Page> {
-  const page = await browser.newPage();
-  const fixture = new URL("../fixtures/latte.html", import.meta.url).href;
-  await page.goto(fixture, { waitUntil: "load" });
-  return page;
-}
+import type { Action, Planner, ReflexProvider, RunResult, StepRecord } from "../src/types.ts";
+import { FakeDriver } from "./helpers/fake-driver.ts";
+import { el, item, observation } from "./helpers/observations.ts";
 
 class CaptureLog {
   readonly records: StepRecord[] = [];
@@ -33,24 +17,48 @@ class CaptureLog {
   }
 }
 
-async function run(page: Page, reflex: ReflexProvider, planner: Planner, maxSteps?: number): Promise<{ result: RunResult; log: CaptureLog }> {
+const orderButton = el("e4", "button", "Order latte");
+const nameField = el("e7", "textbox", "Your name", "type");
+
+const startPage = observation({
+  fingerprint: "start",
+  outline: '- button "Order latte" [ref=e4]\n- textbox "Your name" [ref=e7]',
+  elements: [orderButton, nameField],
+  menu: [item(orderButton)],
+});
+
+const donePage = observation({
+  fingerprint: "done",
+  outline: '- button "Order latte" [ref=e4]\n- textbox "Your name" [ref=e7]\n- status: Latte ordered. Thank you!',
+  elements: [orderButton, nameField],
+  menu: [item(orderButton)],
+});
+
+const formPage = observation({
+  fingerprint: "form",
+  outline: '- textbox "Your name" [ref=e7]',
+  elements: [nameField],
+});
+
+const typed = (text: string) =>
+  observation({
+    fingerprint: `after-${text}`,
+    outline: `- textbox "Your name" [ref=e7]: ${text}`,
+    elements: [nameField],
+  });
+
+async function run(driver: Driver, reflex: ReflexProvider, planner: Planner, maxSteps?: number): Promise<{ result: RunResult; log: CaptureLog }> {
   const log = new CaptureLog();
-  const loop = new ReflexLoop({ goal: "Order a latte", reflex, planner, page, log, maxSteps });
+  const loop = new ReflexLoop({ goal: "Order a latte", reflex, planner, driver, log, maxSteps });
   return { result: await loop.run(), log };
 }
 
-const nameRef = (observation: Observation): string => {
-  const ref = observation.elements.find((element) => element.name === "Your name")?.ref;
-  if (!ref) throw new Error("the name field is missing from the observation");
-  return ref;
-};
-
 describe("the done path", () => {
   it("clicks, then verifies through the planner, and logs every step fully", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(startPage, (action) => (action.kind === "click" ? donePage : startPage));
     const reflex = new FakeReflex({ rules: [{ when: /latte ordered/i, done: 0.95 }, { pick: /order latte/i }] });
     const planner = new FakePlanner({ verify: () => ({ done: true, reason: "the page shows the ordered confirmation" }) });
-    const { result, log } = await run(page, reflex, planner);
+    const { result, log } = await run(driver, reflex, planner);
 
     expect(result.outcome).toBe("done");
     expect(result.reason).toBe("the page shows the ordered confirmation");
@@ -61,13 +69,15 @@ describe("the done path", () => {
 
     const first = log.records[0] as StepRecord;
     expect(first.elements.length).toBeGreaterThan(0);
-    expect(first.menu.some((item) => item.label.includes("Order latte"))).toBe(true);
+    expect(first.menu.some((entry) => entry.label.includes("Order latte"))).toBe(true);
     expect(Object.keys(first.questions ?? {})).toEqual(["next_1", "goal_done"]);
     expect(first.action?.kind).toBe("click");
-    expect(first.pageAfter.title).toBe("Bean Counter Cafe");
+    expect(first.pageAfter.title).toBe("Test page");
     expect(first.pageAfter.outline).toContain("Latte ordered");
     expect(first.options[0]?.label).toContain("Order latte");
 
+    expect(driver.actions).toHaveLength(1);
+    expect(driver.actions[0]?.kind).toBe("click");
     expect(result.stats.reflex.calls).toBe(2);
     expect(result.stats.planner.calls).toBe(1);
   });
@@ -75,24 +85,26 @@ describe("the done path", () => {
 
 describe("escalation constants", () => {
   it("pauses after 4 stuck steps and escalates to the planner after 2", async () => {
-    const page = await freshPage();
+    const noop = el("e6", "button", "Read our story");
+    const stuckPage = observation({ fingerprint: "stuck", outline: '- button "Read our story" [ref=e6]', elements: [noop], menu: [item(noop)] });
+    const driver = new FakeDriver(stuckPage);
     const reflex = new FakeReflex({ rules: [{ pick: /read our story/i, confidence: 0.9 }] });
     const planner = new FakePlanner({ decide: () => ({ kind: "wait", label: "wait" }) });
-    const { result } = await run(page, reflex, planner);
+    const { result } = await run(driver, reflex, planner);
 
     expect(result.outcome).toBe("paused");
     expect(result.reason).toContain("stuck");
     expect(result.stats.reflex.calls).toBe(2); // steps 1 and 2, then the planner decides
-    // 4 planner calls, not 2: the planner's repeated "wait" is challenged once (the work repo's
-    // repeat challenge) and trusted on its second try, and every answer is one call.
+    // 4 planner calls, not 2: the planner's repeated "wait" is challenged once
+    // and trusted on its second try, and every answer is one call.
     expect(result.stats.planner.calls).toBe(4);
   });
 
   it("pauses after 3 planner answers in a row that run nothing", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(startPage);
     const reflex = new FakeReflex({});
     const planner = new FakePlanner({ decide: (): Action => ({ kind: "click", ref: "e999", label: "click a button that is not there" }) });
-    const { result, log } = await run(page, reflex, planner);
+    const { result, log } = await run(driver, reflex, planner);
 
     expect(result.outcome).toBe("paused");
     expect(result.reason).toContain("could not run");
@@ -104,10 +116,10 @@ describe("escalation constants", () => {
   });
 
   it("ends with needs-human-input when the planner asks a person", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(startPage);
     const reflex = new FakeReflex({});
     const planner = new FakePlanner({ decide: (): Action => ({ kind: "human-input", ask: "Please solve the CAPTCHA." }) });
-    const { result, log } = await run(page, reflex, planner);
+    const { result, log } = await run(driver, reflex, planner);
 
     expect(result.outcome).toBe("needs-human-input");
     expect(result.reason).toContain("CAPTCHA");
@@ -115,35 +127,35 @@ describe("escalation constants", () => {
   });
 
   it("ends with blocked when the planner says so", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(startPage);
     const reflex = new FakeReflex({});
     const planner = new FakePlanner({ decide: (): Action => ({ kind: "blocked", reason: "the checkout is down" }) });
-    const { result } = await run(page, reflex, planner);
+    const { result } = await run(driver, reflex, planner);
 
     expect(result.outcome).toBe("blocked");
     expect(result.reason).toBe("the checkout is down");
   });
 
   it("stops at the step limit while the planner keeps changing the page", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(formPage, (action) => (action.kind === "type" ? typed(action.text) : formPage));
     const reflex = new FakeReflex({});
     let calls = 0;
     const planner = new FakePlanner({
-      decide: (input): Action => {
+      decide: (): Action => {
         calls += 1;
-        const text = calls % 2 === 1 ? "x" : "y";
-        return { kind: "type", ref: nameRef(input.observation), text, label: "type into the name field" };
+        return { kind: "type", ref: "e7", text: calls % 2 === 1 ? "x" : "y", label: "type into the name field" };
       },
     });
-    const { result, log } = await run(page, reflex, planner, 3);
+    const { result, log } = await run(driver, reflex, planner, 3);
 
     expect(result.outcome).toBe("max-steps");
     expect(log.records.filter((record) => record.kind === "action")).toHaveLength(3);
   });
 
   it("waits 3 steps between two verify tries", async () => {
-    const page = await freshPage();
-    const reflex = new FakeReflex({ rules: [{ when: /order latte/i, done: 0.95 }] });
+    const driver = new FakeDriver(startPage, (action) => (action.kind === "type" ? typed(action.text) : startPage));
+    // The title matches on every page, so the reflex proposes done at every check.
+    const reflex = new FakeReflex({ rules: [{ when: /test page/i, done: 0.95 }] });
     let verifies = 0;
     let decides = 0;
     const planner = new FakePlanner({
@@ -151,33 +163,33 @@ describe("escalation constants", () => {
         verifies += 1;
         return verifies === 1 ? { done: false, reason: "nothing is ordered yet" } : { done: true, reason: "confirmed now" };
       },
-      decide: (input): Action => {
+      decide: (): Action => {
         decides += 1;
-        const text = decides % 2 === 1 ? "x" : "y";
-        return { kind: "type", ref: nameRef(input.observation), text, label: "type into the name field" };
+        return { kind: "type", ref: "e7", text: `x${decides}`, label: "type into the name field" };
       },
     });
-    const { result, log } = await run(page, reflex, planner);
+    const { result, log } = await run(driver, reflex, planner);
 
     expect(result.outcome).toBe("done");
     expect(verifies).toBe(2);
-    // The cooldown steps need at least one planner answer each; the repeat challenge can add more.
-    expect(decides).toBeGreaterThanOrEqual(3);
+    // One planner answer per cooldown step. The unique text avoids the repeat challenge.
+    expect(decides).toBe(4);
     expect(log.records.filter((record) => record.kind === "verify").map((record) => record.result)).toEqual(["not yet: nothing is ordered yet", "done: confirmed now"]);
   });
 
   it("escalates repeats to the planner, then pauses when the same action keeps coming", async () => {
-    const page = await freshPage();
-    const reflex = new FakeReflex({ rules: [{ pick: /extra shot/i, confidence: 0.95 }] });
-    const checkboxRef = (observation: Observation): string => {
-      const ref = observation.elements.find((element) => element.name === "Extra shot")?.ref;
-      if (!ref) throw new Error("the checkbox is missing from the observation");
-      return ref;
-    };
-    const planner = new FakePlanner({
-      decide: (input): Action => ({ kind: "click", ref: checkboxRef(input.observation), role: "checkbox", label: "toggle checkbox \"Extra shot\"" }),
+    const checkbox = el("e9", "checkbox", "Extra shot");
+    const pageA = observation({ fingerprint: "a", outline: '- checkbox "Extra shot" [ref=e9]', elements: [checkbox], menu: [item(checkbox, 'toggle checkbox "Extra shot"')] });
+    const pageB = observation({
+      fingerprint: "b",
+      outline: '- checkbox "Extra shot" [ref=e9] [checked]',
+      elements: [{ ...checkbox, checked: true }],
+      menu: [item(checkbox, 'toggle checkbox "Extra shot"')],
     });
-    const { result, log } = await run(page, reflex, planner);
+    const driver = new FakeDriver(pageA, (_action, current) => (current.fingerprint === "a" ? pageB : pageA));
+    const reflex = new FakeReflex({ rules: [{ pick: /extra shot/i, confidence: 0.95 }] });
+    const planner = new FakePlanner({ decide: (): Action => ({ kind: "click", ref: "e9", role: "checkbox", label: 'toggle checkbox "Extra shot"' }) });
+    const { result, log } = await run(driver, reflex, planner);
 
     // The checkbox toggles, so the page changes every time and the stuck limits never fire.
     // Only the repeat window can catch this loop.
@@ -187,21 +199,8 @@ describe("escalation constants", () => {
     expect(result.stats.planner.calls).toBeGreaterThanOrEqual(4);
   });
 
-  it("gives every record its own sequence number", async () => {
-    const page = await freshPage();
-    const reflex = new FakeReflex({ rules: [{ when: /latte ordered/i, done: 0.95 }, { pick: /order latte/i }] });
-    const planner = new FakePlanner({ verify: () => ({ done: true, reason: "confirmed" }) });
-    const { log } = await run(page, reflex, planner);
-
-    const seqs = log.records.map((record) => record.seq);
-    expect(seqs).toEqual([1, 2]);
-    expect(log.records[0]?.step).toBe(1);
-    expect(log.records[1]?.step).toBe(1); // the verify belongs to the step it checked
-    expect(log.records[1]?.kind).toBe("verify");
-  });
-
   it("counts a planner failure as an idle answer", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(startPage);
     const reflex = new FakeReflex({});
     const failing: Planner = {
       name: "failing-planner",
@@ -210,7 +209,7 @@ describe("escalation constants", () => {
       },
       verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: null }),
     };
-    const { result, log } = await run(page, reflex, failing);
+    const { result, log } = await run(driver, reflex, failing);
 
     expect(result.outcome).toBe("paused");
     expect(result.reason).toContain("could not run");
@@ -221,22 +220,36 @@ describe("escalation constants", () => {
   });
 
   it("adds planner calls to the cost", async () => {
-    const page = await freshPage();
+    const driver = new FakeDriver(formPage, (action) => (action.kind === "type" ? typed(action.text) : formPage));
     const reflex = new FakeReflex({});
     let calls = 0;
     const pricey: Planner = {
       name: "pricey-planner",
-      decide: async (input) => {
+      decide: async () => {
         calls += 1;
-        const text = calls % 2 === 1 ? "x" : "y";
-        return { action: { kind: "type", ref: nameRef(input.observation), text, label: "type into the name field" }, reason: "type", ms: 1, usage: null, costUsd: 0.25 };
+        return { action: { kind: "type", ref: "e7", text: `x${calls}`, label: "type into the name field" }, reason: "type", ms: 1, usage: null, costUsd: 0.25 };
       },
       verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: 0.5 }),
     };
-    const { result } = await run(page, reflex, pricey, 2);
+    const { result } = await run(driver, reflex, pricey, 2);
 
     expect(result.outcome).toBe("max-steps");
     expect(result.stats.planner.calls).toBe(2);
     expect(result.stats.planner.costUsd).toBeCloseTo(0.5);
+  });
+});
+
+describe("the step log", () => {
+  it("gives every record its own sequence number", async () => {
+    const driver = new FakeDriver(startPage, (action) => (action.kind === "click" ? donePage : startPage));
+    const reflex = new FakeReflex({ rules: [{ when: /latte ordered/i, done: 0.95 }, { pick: /order latte/i }] });
+    const planner = new FakePlanner({ verify: () => ({ done: true, reason: "confirmed" }) });
+    const { log } = await run(driver, reflex, planner);
+
+    const seqs = log.records.map((record) => record.seq);
+    expect(seqs).toEqual([1, 2]);
+    expect(log.records[0]?.step).toBe(1);
+    expect(log.records[1]?.step).toBe(1); // the verify belongs to the step it checked
+    expect(log.records[1]?.kind).toBe("verify");
   });
 });

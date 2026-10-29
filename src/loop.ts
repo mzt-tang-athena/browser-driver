@@ -2,8 +2,7 @@
 // Ported from the work repo (lib/agent.mjs takeStep, act, record),
 // with the work repo escalation constants from src/limits.ts.
 
-import { execute, settle } from "./actuator.ts";
-import { observe } from "./eyes.ts";
+import type { Driver } from "./driver/driver.ts";
 import { CONFIDENCE_THRESHOLD, DONE_PROBABILITY, IDLE_ANSWERS_PAUSE, MAX_STEPS, REPEAT_ESCALATE, REPEAT_PAUSE, REPEAT_WINDOW, STUCK_ESCALATE, STUCK_PAUSE, VERIFY_COOLDOWN_STEPS } from "./limits.ts";
 import type { Action, Observation, Planner, PlannerDecision, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
 
@@ -11,7 +10,7 @@ export interface LoopOptions {
   goal: string;
   reflex: ReflexProvider;
   planner: Planner;
-  page: import("playwright").Page;
+  driver: Driver;
   log: StepLogSink;
   maxSteps?: number;
   confidenceThreshold?: number;
@@ -110,7 +109,7 @@ export class ReflexLoop {
   }
 
   private async takeStep(): Promise<void> {
-    const observation = await observe(this.options.page);
+    const observation = await this.options.driver.observe();
     let decision: ReflexDecision | null = null;
 
     if (!this.forcedReason) {
@@ -272,12 +271,12 @@ export class ReflexLoop {
     this.step += 1;
     let failure: string | null = null;
     try {
-      await execute(this.options.page, action);
+      await this.options.driver.execute(action);
     } catch (error) {
       failure = firstLine(error instanceof Error ? error.message : String(error));
     }
-    await settle(this.options.page);
-    const after = await observe(this.options.page);
+    await this.options.driver.settle();
+    const after = await this.options.driver.observe();
     const changed = after.fingerprint !== observation.fingerprint;
     const text = describeAction(action);
     const result = changed

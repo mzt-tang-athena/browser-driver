@@ -4,7 +4,7 @@
 
 import { chromium } from "playwright";
 import { join } from "node:path";
-import { observe } from "./eyes.ts";
+import { PlaywrightDriver } from "./driver/playwright.ts";
 import { ChatPlanner, OPENCODE_CHAT_BASE_URL } from "./planner/chat.ts";
 import { FakePlanner } from "./planner/fake.ts";
 import { FakeReflex } from "./reflex/fake.ts";
@@ -91,16 +91,17 @@ async function main(): Promise<void> {
     const page = await browser.newPage();
     const fixture = new URL("../fixtures/latte.html", import.meta.url).href;
     await page.goto(fixture, { waitUntil: "load" });
+    const driver = new PlaywrightDriver(page);
 
     console.log(`goal: ${GOAL}`);
     console.log(reflexNote);
     console.log(plannerNote);
-    const observation = await observe(page);
+    const observation = await driver.observe();
     console.log(`start page: ${observation.title} | ${observation.url}`);
     console.log("");
     console.log("step log");
 
-    const loop = new ReflexLoop({ goal: GOAL, reflex, planner, page, log });
+    const loop = new ReflexLoop({ goal: GOAL, reflex, planner, driver, log });
     const result = await loop.run();
     printSummary(console.log, result, GOAL);
     if (log.path) console.log(`  step log file: ${log.path}`);

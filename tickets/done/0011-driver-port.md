@@ -37,4 +37,14 @@ a browser. Split the browser behind a small port.
 
 ## Outcome
 
-(filled in before moving to done/)
+Done on 2026-10-29.
+
+- `src/driver/driver.ts` defines the port: `observe`, `execute`, `settle`.
+- `PlaywrightDriver` wraps the page and owns the eyes and the actuator.
+- `ReflexLoop` takes `driver: Driver`. `loop.ts` imports no Playwright.
+- `tests/helpers/fake-driver.ts` scripts page transitions and records the
+  actions. The loop tests run in 20 ms, down from about 14 seconds.
+- `tests/driver.test.ts` is the one real-browser test for the port.
+- The demo uses `PlaywrightDriver`. Fakes and live both finish done with
+  the same step shape.
+- 51 tests pass; typecheck and prose lint are clean.
