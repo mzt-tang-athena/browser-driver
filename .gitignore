@@ -1,5 +1,7 @@
 node_modules/
 runs/
+profiles/
 evals/runs/
+profiles/
 .env
 .vale/
