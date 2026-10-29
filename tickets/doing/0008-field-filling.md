@@ -3,7 +3,7 @@ id: 0008
 title: Fill form fields before choosing an action
 created: 2026-10-28
 priority: high
-assignee:
+assignee: opencode
 pr:
 depends: [0002]
 ---
