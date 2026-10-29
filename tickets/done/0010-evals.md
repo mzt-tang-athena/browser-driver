@@ -35,4 +35,20 @@ suite.
 
 ## Outcome
 
-(filled in before moving to done/)
+Done on 2026-10-29.
+
+- Seven scenarios: click-through, form, select, dialog, error, repeat, goto.
+  Each uses a local page, a real browser, and scripted models.
+- `npm run eval` is deterministic and offline. Three runs in a row passed
+  7/7 with no flake; the suite takes about 4 seconds.
+- `--live` swaps in the real Jev and planner. It prints the table and does
+  not fail the run. Form and select need ticket 0008 before they pass live.
+- Metrics per scenario: outcome, action steps, reflex calls, planner calls,
+  cost, and wall time. A failure prints the scenario, the expected and
+  actual outcomes, and the step log path.
+- Results go to `evals/runs/<stamp>/` as `results.json` plus one step log
+  per scenario. The folder is gitignored.
+- CI runs the deterministic suite after the tests.
+- Docs are in `evals/README.md`, with how to add a scenario and what the
+  suite cannot catch. README lists the command.
+- 51 tests, typecheck, prose lint, and the eval suite pass.

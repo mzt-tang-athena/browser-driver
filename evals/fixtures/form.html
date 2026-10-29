@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Order form</title></head>
+  <body>
+    <h1>Order form</h1>
+    <label for="name">Your name</label>
+    <input id="name" />
+    <label for="size">Size</label>
+    <select id="size">
+      <option>Small</option>
+      <option>Large</option>
+    </select>
+    <button id="place">Place order</button>
+    <p id="status" role="status"></p>
+    <script>
+      document.getElementById("place").addEventListener("click", () => {
+        const name = document.getElementById("name").value;
+        const size = document.getElementById("size").value;
+        document.getElementById("status").textContent = `Order placed for ${name} (${size})`;
+      });
+    </script>
+  </body>
+</html>

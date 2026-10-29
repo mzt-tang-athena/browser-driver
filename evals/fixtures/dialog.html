@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Settings</title></head>
+  <body>
+    <h1>Settings</h1>
+    <button id="open">Open settings</button>
+    <dialog id="dialog">
+      <p>Notifications</p>
+      <button id="enable">Enable notifications</button>
+    </dialog>
+    <p id="status" role="status"></p>
+    <script>
+      document.getElementById("open").addEventListener("click", () => document.getElementById("dialog").showModal());
+      document.getElementById("enable").addEventListener("click", () => {
+        document.getElementById("status").textContent = "Notifications enabled";
+        document.getElementById("dialog").close();
+      });
+    </script>
+  </body>
+</html>

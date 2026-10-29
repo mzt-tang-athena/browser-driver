@@ -12,25 +12,9 @@ import { OPENCODE_CONSOLE_ENDPOINT, SystemOneReflex } from "./reflex/systemone.t
 import { resolveApiKey } from "./reflex/keysource.ts";
 import { ReflexLoop } from "./loop.ts";
 import { newRunId, printSummary, StepLog } from "./steplog.ts";
-import { readFileSync } from "node:fs";
+import { loadEnv } from "./env.ts";
 
 const GOAL = "Order a latte";
-
-function loadEnv(): Record<string, string> {
-  try {
-    return Object.fromEntries(
-      readFileSync(join(process.cwd(), ".env"), "utf8")
-        .split("\n")
-        .filter((line) => line.trim() !== "" && !line.startsWith("#"))
-        .map((line) => {
-          const index = line.indexOf("=");
-          return [line.slice(0, index).trim(), line.slice(index + 1).trim()];
-        }),
-    );
-  } catch {
-    return {};
-  }
-}
 
 function arg(name: string): string | null {
   const equals = process.argv.find((value) => value.startsWith(`--${name}=`));

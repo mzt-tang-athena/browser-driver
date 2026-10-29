@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Shipping</title></head>
+  <body>
+    <h1>Shipping</h1>
+    <label for="ship">Shipping</label>
+    <select id="ship">
+      <option>Standard</option>
+      <option>Express</option>
+    </select>
+    <button id="save">Save</button>
+    <p id="status" role="status"></p>
+    <script>
+      document.getElementById("save").addEventListener("click", () => {
+        document.getElementById("status").textContent = `Shipping: ${document.getElementById("ship").value}`;
+      });
+    </script>
+  </body>
+</html>
