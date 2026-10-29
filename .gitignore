@@ -1,4 +1,5 @@
 node_modules/
 runs/
+evals/runs/
 .env
 .vale/

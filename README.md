@@ -25,6 +25,9 @@ agents faster and cheaper by about ten times.
 ## Run it
 
 - `npm install`, then `npm test` for the unit and browser tests
+- `npm run eval` runs seven goal scenarios in a real browser with scripted
+  models. The run is deterministic and runs in CI. Add `--live` to use the
+  real models for a manual check (see `evals/README.md`)
 - `npm run demo` runs one hard-coded goal on a local fixture page and
   prints the step log. The reflex runs the live Jev model and the planner
   runs a live chat model through the OpenCode Console when a key resolves:

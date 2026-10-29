@@ -10,7 +10,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "demo": "tsx src/index.ts"
+    "demo": "tsx src/index.ts",
+    "eval": "tsx evals/run.ts"
   },
   "dependencies": {
     "playwright": "^1.55.0"

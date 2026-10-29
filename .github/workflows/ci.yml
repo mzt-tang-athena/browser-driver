@@ -18,6 +18,8 @@ jobs:
         run: npm run typecheck
       - name: Tests
         run: npm test
+      - name: Evals
+        run: npm run eval
 
   docs:
     runs-on: ubuntu-latest
