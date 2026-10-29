@@ -3,7 +3,7 @@ id: 0011
 title: Driver port: the loop stops depending on Playwright
 created: 2026-10-29
 priority: high
-assignee:
+assignee: opencode
 pr:
 depends: [0002]
 ---
