@@ -4,7 +4,8 @@
 
 import type { Driver } from "./driver/driver.ts";
 import { CONFIDENCE_THRESHOLD, DONE_PROBABILITY, IDLE_ANSWERS_PAUSE, MAX_STEPS, REPEAT_ESCALATE, REPEAT_PAUSE, REPEAT_WINDOW, STUCK_ESCALATE, STUCK_PAUSE, VERIFY_COOLDOWN_STEPS } from "./limits.ts";
-import type { Action, BrowserAction, FieldOffer, Observation, PageElement, Planner, PlannerDecision, PlannerFill, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
+import { buildState } from "./state.ts";
+import type { Action, ApprovalRequest, BrowserAction, FieldOffer, NoulAnswer, Observation, PageElement, Planner, PlannerDecision, PlannerFill, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
 
 export interface LoopOptions {
   goal: string;
@@ -19,6 +20,12 @@ export interface LoopOptions {
   fillFields?: boolean;
   /** Most fields to offer the planner in one step. Default 6. */
   maxFields?: number;
+  /** Hosts the run may visit. Undefined or empty means no limit. "file" allows file URLs. */
+  allowlist?: string[];
+  /** Ask a human before an irreversible action. Off when absent. */
+  gate?: { approve: (request: ApprovalRequest) => Promise<boolean>; threshold?: number };
+  /** Stop the run when the model cost reaches this many dollars. */
+  costCapUsd?: number;
 }
 
 /** The loop hands every record to the sink. The sink prints it, stores it, or both. */
@@ -30,6 +37,21 @@ const pct = (value: number): string => `${Math.round(value * 100)}%`;
 const firstLine = (text: string): string => String(text).split("\n")[0] as string;
 const fieldKey = (path: string, element: PageElement): string => `${path}|${element.ref}|${element.name}`;
 const fieldLabel = (element: PageElement): string => `${element.role} "${element.name}"`;
+
+// Words that mark an action as hard to undo. The gate asks the reflex only for these.
+const IRREVERSIBLE = /\b(publish|pay|payment|send|delete|remove|transfer|purchase|buy|checkout|place order|submit order|confirm (order|payment|purchase))\b/i;
+const GATE_INSTRUCTIONS = "Is this action irreversible, or does it move money or data in a way a person cannot undo?";
+
+const GATE_THRESHOLD = 0.5;
+const hostAllowed = (url: string, allowlist: string[] | undefined): boolean => {
+  if (!allowlist || allowlist.length === 0) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "file:" ? allowlist.includes("file") : allowlist.includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
 
 export function describeAction(action: Action): string {
   switch (action.kind) {
@@ -66,6 +88,8 @@ export class ReflexLoop {
   private seq = 0;
   private noChange = 0;
   private readonly handledFields = new Set<string>();
+  /** Values typed during the run. The step log masks every one of them. */
+  private readonly typedValues = new Set<string>();
   private idleAnswers = 0;
   private verifyCooldown = 0;
   private forcedReason: string | null = null;
@@ -81,6 +105,10 @@ export class ReflexLoop {
     while (this.outcome === null) {
       if (this.step >= (this.options.maxSteps ?? MAX_STEPS)) {
         this.finish("max-steps", `Reached the step limit of ${this.options.maxSteps ?? MAX_STEPS}.`);
+        break;
+      }
+      if (this.options.costCapUsd != null && this.costTotal() >= this.options.costCapUsd) {
+        this.finish("paused", `Reached the cost cap of $${this.options.costCapUsd.toFixed(4)}.`);
         break;
       }
       try {
@@ -103,7 +131,34 @@ export class ReflexLoop {
     this.seq += 1;
     const entry: StepRecord = { seq: this.seq, ...record };
     this.steps.push(entry);
-    this.options.log.write(entry);
+    this.options.log.write(this.redact(entry));
+  }
+
+  // The log keeps the run's shape but not the text the run typed. Typed values
+  // are masked everywhere: the action, the step lines, and any page outline
+  // that echoes them. Select labels and other page text stay.
+  private redact(record: StepRecord): StepRecord {
+    const mask = (text: string): string => {
+      let out = text;
+      for (const value of this.typedValues) {
+        if (value === "") continue;
+        out = out.split(value).join("***");
+      }
+      return out;
+    };
+    const action = record.action?.kind === "type" ? { ...record.action, text: "***" } : record.action;
+    return {
+      ...record,
+      action,
+      text: mask(record.text),
+      result: mask(record.result),
+      elements: record.elements.map((element) => ({ ...element, value: element.value && this.typedValues.has(element.value) ? "***" : element.value })),
+      pageAfter: { ...record.pageAfter, outline: mask(record.pageAfter.outline) },
+    };
+  }
+
+  private costTotal(): number {
+    return (this.stats.reflex.costUsd ?? 0) + this.stats.planner.costUsd;
   }
 
   private recentSteps(): string[] {
@@ -117,6 +172,10 @@ export class ReflexLoop {
 
   private async takeStep(): Promise<void> {
     const observation = await this.options.driver.observe();
+    if (!hostAllowed(observation.url, this.options.allowlist)) {
+      this.finish("blocked", `The page is outside the allowlist: ${observation.url}`);
+      return;
+    }
     // Fields first: the planner writes text before the loop chooses a click.
     if ((this.options.fillFields ?? true) && (await this.fillFields(observation))) return;
     let decision: ReflexDecision | null = null;
@@ -236,6 +295,8 @@ export class ReflexLoop {
     }
 
     const filled = actions.map((action) => (action.kind === "type" ? `${action.label}="${action.text}"` : action.kind === "select" ? `${action.label}="${action.option}"` : action.label));
+    // Register the typed values before the field record is written, so the log masks them too.
+    for (const action of actions) if (action.kind === "type") this.typedValues.add(action.text);
     this.write({
       step: this.step,
       kind: "field",
@@ -347,8 +408,78 @@ export class ReflexLoop {
   }
 
   private async act(observation: Observation, action: BrowserAction, decision: ReflexDecision | null, source: string, probability: number | null): Promise<void> {
+    const text = describeAction(action);
+
+    // Never leave the allowlist, even when the planner names the URL.
+    if (action.kind === "goto" && !hostAllowed(action.url, this.options.allowlist)) {
+      this.write({
+        step: this.step,
+        kind: "guard",
+        goal: this.options.goal,
+        source: "guard",
+        probability: null,
+        path: observation.path,
+        fingerprint: observation.fingerprint,
+        elements: observation.elements,
+        menu: observation.menu,
+        questions: null,
+        answers: null,
+        options: [],
+        action,
+        text,
+        result: `refused: the URL is outside the allowlist`,
+        pageAfter: { url: observation.url, title: observation.title, outline: observation.outline },
+        ms: 0,
+      });
+      this.finish("blocked", `Refused to open ${action.url}: it is outside the allowlist.`);
+      return;
+    }
+
+    // Ask the reflex whether the action is hard to undo. A likely yes asks the human.
+    if (this.options.gate && IRREVERSIBLE.test(text)) {
+      let answer;
+      try {
+        answer = await this.options.reflex.askNoul({
+          state: `${buildState(this.options.goal, observation, this.recentSteps())}\n\nAction: ${text}`,
+          instructions: GATE_INSTRUCTIONS,
+        });
+      } catch (error) {
+        this.finish("blocked", `The approval gate could not ask the reflex: ${firstLine(error instanceof Error ? error.message : String(error))}`);
+        return;
+      }
+      this.trackNoul(answer);
+      if (answer.probability >= (this.options.gate.threshold ?? GATE_THRESHOLD)) {
+        const approved = await this.options.gate.approve({ action, question: `Approve this action: ${text}`, probability: answer.probability, url: observation.url, fingerprint: observation.fingerprint });
+        this.write({
+          step: this.step,
+          kind: "gate",
+          goal: this.options.goal,
+          source: this.options.reflex.name,
+          probability: answer.probability,
+          path: observation.path,
+          fingerprint: observation.fingerprint,
+          elements: observation.elements,
+          menu: observation.menu,
+          questions: null,
+          answers: null,
+          options: [],
+          action,
+          text: `approval gate: ${text}`,
+          result: approved ? `approved (reflex ${pct(answer.probability)})` : `denied (reflex ${pct(answer.probability)})`,
+          pageAfter: { url: observation.url, title: observation.title, outline: observation.outline },
+          ms: answer.ms,
+          costUsd: answer.costUsd,
+        });
+        if (!approved) {
+          this.finish("blocked", "The human denied the action.");
+          return;
+        }
+      }
+    }
+
     const started = Date.now();
     this.step += 1;
+    if (action.kind === "type") this.typedValues.add(action.text);
     let failure: string | null = null;
     try {
       await this.options.driver.execute(action);
@@ -357,8 +488,8 @@ export class ReflexLoop {
     }
     await this.options.driver.settle();
     const after = await this.options.driver.observe();
+    const escaped = !hostAllowed(after.url, this.options.allowlist);
     const changed = after.fingerprint !== observation.fingerprint;
-    const text = describeAction(action);
     const result = changed
       ? after.path !== observation.path
         ? `now on ${after.path}`
@@ -401,6 +532,18 @@ export class ReflexLoop {
     });
     this.history.push({ step: this.step, text, result });
     this.idleAnswers = 0;
+    if (escaped) this.finish("blocked", `The action left the allowlist: ${after.url}`);
+  }
+
+  private trackNoul(answer: NoulAnswer): void {
+    this.stats.reflex.calls += 1;
+    this.stats.reflex.ms += answer.ms;
+    this.stats.reflex.inputTokens += answer.usage?.input_tokens ?? 0;
+    this.stats.reflex.outputTokens += answer.usage?.output_tokens ?? 0;
+    if (answer.costUsd != null) {
+      this.stats.reflex.costUsd ??= 0;
+      this.stats.reflex.costUsd += answer.costUsd;
+    }
   }
 
   private trackReflex(decision: ReflexDecision): void {

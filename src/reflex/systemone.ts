@@ -5,7 +5,7 @@
 
 import { CHARS_PER_TOKEN, CONTEXT_MARGIN, MIN_OUTLINE_CHARS, REFLEX_CONTEXT_TOKENS } from "../limits.ts";
 import { buildState, cutOutline } from "../state.ts";
-import type { MenuItem, Observation, ReflexAnswer, ReflexAnswers, ReflexDecision, ReflexProvider, ReflexQuestions, Usage } from "../types.ts";
+import type { MenuItem, NoulAnswer, Observation, ReflexAnswer, ReflexAnswers, ReflexDecision, ReflexProvider, ReflexQuestions, Usage } from "../types.ts";
 import { allOptions, answersByName, nextActionQuestions, pickBest } from "./questions.ts";
 
 export interface SystemOneOptions {
@@ -86,7 +86,6 @@ export class SystemOneReflex implements ReflexProvider {
     const done = answers["goal_done"];
     const best = pickBest(answers);
     const item: MenuItem | undefined = best ? menu.find((candidate) => candidate.id === best.id) : undefined;
-    const costUsd = this.pricing && usage ? ((usage.input_tokens ?? 0) / 1e6) * this.pricing.inputPerMTok + ((usage.output_tokens ?? 0) / 1e6) * this.pricing.outputPerMTok : null;
     return {
       choice: best && item ? { id: best.id, label: item.label, probability: best.probability } : null,
       options: allOptions(answers).map((option) => {
@@ -96,9 +95,35 @@ export class SystemOneReflex implements ReflexProvider {
       doneProbability: typeof (done as ReflexAnswer | undefined)?.noul === "number" ? (done as { noul: number }).noul : 0,
       ms,
       usage,
-      costUsd,
+      costUsd: this.cost(usage),
       request: { state, questions },
       answers,
     };
+  }
+
+  async askNoul(input: { state: string; instructions: string; criteria?: { true: string; false: string } }): Promise<NoulAnswer> {
+    const questions: ReflexQuestions = {
+      gate: {
+        type: "noul",
+        instructions: input.instructions,
+        criteria: input.criteria ?? {
+          true: "the action is irreversible, or it moves money, data, or something a person cannot undo",
+          false: "the action is safe to repeat and easy to undo",
+        },
+      },
+    };
+    const { answers, usage, ms } = await this.ask(input.state, questions);
+    const answer = answers["gate"];
+    return {
+      probability: typeof answer?.noul === "number" ? answer.noul : 0,
+      ms,
+      usage,
+      costUsd: this.cost(usage),
+    };
+  }
+
+  private cost(usage: Usage | null): number | null {
+    if (!this.pricing || !usage) return null;
+    return ((usage.input_tokens ?? 0) / 1e6) * this.pricing.inputPerMTok + ((usage.output_tokens ?? 0) / 1e6) * this.pricing.outputPerMTok;
   }
 }

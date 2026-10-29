@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { Driver } from "../src/driver/driver.ts";
 import { ReflexLoop } from "../src/loop.ts";
+import type { LoopOptions } from "../src/loop.ts";
 import { FakePlanner } from "../src/planner/fake.ts";
 import { FakeReflex } from "../src/reflex/fake.ts";
 import type { Action, Planner, ReflexProvider, RunResult, StepRecord } from "../src/types.ts";
@@ -55,9 +56,25 @@ const typed = (text: string) =>
     elements: [{ ...nameField, value: text }],
   });
 
-async function run(driver: Driver, reflex: ReflexProvider, planner: Planner, options: { maxSteps?: number; fillFields?: boolean } = {}): Promise<{ result: RunResult; log: CaptureLog }> {
+async function run(
+  driver: Driver,
+  reflex: ReflexProvider,
+  planner: Planner,
+  options: Partial<Pick<LoopOptions, "maxSteps" | "fillFields" | "allowlist" | "gate" | "costCapUsd">> = {},
+): Promise<{ result: RunResult; log: CaptureLog }> {
   const log = new CaptureLog();
-  const loop = new ReflexLoop({ goal: "Order a latte", reflex, planner, driver, log, maxSteps: options.maxSteps, fillFields: options.fillFields });
+  const loop = new ReflexLoop({
+    goal: "Order a latte",
+    reflex,
+    planner,
+    driver,
+    log,
+    maxSteps: options.maxSteps,
+    fillFields: options.fillFields,
+    allowlist: options.allowlist,
+    gate: options.gate,
+    costCapUsd: options.costCapUsd,
+  });
   return { result: await loop.run(), log };
 }
 
@@ -292,7 +309,8 @@ describe("the field phase", () => {
     expect(driver.actions.map((action) => action.kind)).toEqual(["type", "select", "click"]);
     // The fields are filled once, not on every step.
     expect(driver.actions.filter((action) => action.kind === "type")).toHaveLength(1);
-    expect(log.records[0]?.result).toContain('"Jane"');
+    // The typed value is masked in the log; the select label stays.
+    expect(log.records[0]?.result).toContain('"***"');
     expect(log.records[0]?.result).toContain('"Large"');
   });
 
@@ -323,6 +341,119 @@ describe("the field phase", () => {
     const idles = log.records.filter((record) => record.kind === "idle");
     expect(idles).toHaveLength(3);
     expect(idles[0]?.text).toContain("fill failed");
+  });
+});
+
+describe("guardrails", () => {
+  const placeButton = el("e5", "button", "Place order");
+  const placePage = observation({
+    fingerprint: "place",
+    outline: '- button "Place order" [ref=e5]',
+    elements: [placeButton],
+    menu: [item(placeButton)],
+  });
+
+  it("refuses a goto outside the allowlist", async () => {
+    const driver = new FakeDriver(startPage);
+    const reflex = new FakeReflex({});
+    const planner = new FakePlanner({ decide: () => ({ kind: "goto", url: "https://evil.test/x", label: "https://evil.test/x" }) });
+    const { result, log } = await run(driver, reflex, planner, { allowlist: ["example.test"] });
+
+    expect(result.outcome).toBe("blocked");
+    expect(result.reason).toContain("outside the allowlist");
+    expect(driver.actions).toHaveLength(0);
+    expect(log.records.at(-1)?.kind).toBe("guard");
+  });
+
+  it("stops when an action leaves the allowlist", async () => {
+    const escaped = { ...donePage, url: "https://evil.test/x", path: "/x", fingerprint: "escaped" };
+    const driver = new FakeDriver(startPage, () => escaped);
+    const reflex = new FakeReflex({ rules: [{ pick: /order latte/i }] });
+    const planner = new FakePlanner({});
+    const { result } = await run(driver, reflex, planner, { allowlist: ["example.test"] });
+
+    expect(result.outcome).toBe("blocked");
+    expect(result.reason).toContain("left the allowlist");
+    expect(driver.actions).toHaveLength(1);
+  });
+
+  it("asks the human before an irreversible action and runs it on approval", async () => {
+    const driver = new FakeDriver(placePage);
+    const reflex = new FakeReflex({ rules: [{ pick: /place order/i }], askNoul: () => 0.9 });
+    const planner = new FakePlanner({});
+    const asked: string[] = [];
+    const { result, log } = await run(driver, reflex, planner, {
+      maxSteps: 1,
+      gate: {
+        approve: async (request) => {
+          asked.push(request.question);
+          return true;
+        },
+      },
+    });
+
+    expect(result.outcome).toBe("max-steps");
+    expect(driver.actions).toHaveLength(1);
+    expect(asked[0]).toContain('click button "Place order"');
+    expect(log.records.some((record) => record.kind === "gate" && record.result.startsWith("approved"))).toBe(true);
+  });
+
+  it("stops when the human denies", async () => {
+    const driver = new FakeDriver(placePage);
+    const reflex = new FakeReflex({ rules: [{ pick: /place order/i }], askNoul: () => 0.9 });
+    const planner = new FakePlanner({});
+    const { result, log } = await run(driver, reflex, planner, { gate: { approve: async () => false } });
+
+    expect(result.outcome).toBe("blocked");
+    expect(result.reason).toContain("denied");
+    expect(driver.actions).toHaveLength(0);
+    expect(log.records.at(-1)?.result).toContain("denied");
+  });
+
+  it("does not gate a reversible action", async () => {
+    const driver = new FakeDriver(startPage);
+    const reflex = new FakeReflex({ rules: [{ pick: /order latte/i }], askNoul: () => 0.9 });
+    const planner = new FakePlanner({});
+    const { result, log } = await run(driver, reflex, planner, { maxSteps: 1, gate: { approve: async () => false } });
+
+    expect(result.outcome).toBe("max-steps");
+    expect(driver.actions).toHaveLength(1);
+    expect(log.records.some((record) => record.kind === "gate")).toBe(false);
+  });
+
+  it("stops at the cost cap", async () => {
+    const driver = new FakeDriver(formPage, (action) => (action.kind === "type" ? typed(action.text) : formPage));
+    const reflex = new FakeReflex({});
+    let calls = 0;
+    const pricey: Planner = {
+      name: "pricey-planner",
+      decide: async () => {
+        calls += 1;
+        return { action: { kind: "type", ref: "e7", text: `x${calls}`, label: "type into the name field" }, reason: "type", ms: 0, usage: null, costUsd: 0.25 };
+      },
+      verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: null }),
+      fill: async () => ({ fields: [], reason: "none", ms: 0, usage: null, costUsd: null }),
+    };
+    const { result } = await run(driver, reflex, pricey, { costCapUsd: 0.5, fillFields: false });
+
+    expect(result.outcome).toBe("paused");
+    expect(result.reason).toContain("cost cap");
+    expect(result.stats.planner.calls).toBe(2);
+  });
+
+  it("masks typed values in the step log", async () => {
+    const driver = new FakeDriver(formPage, (action) => (action.kind === "type" ? typed(action.text) : formPage));
+    const reflex = new FakeReflex({});
+    const planner = new FakePlanner({ decide: () => ({ kind: "type", ref: "e7", text: "hunter2-secret", label: "type into the name field" }) });
+    const { result, log } = await run(driver, reflex, planner, { maxSteps: 1, fillFields: false });
+
+    expect(result.outcome).toBe("max-steps");
+    expect(driver.actions[0]?.kind === "type" && driver.actions[0].text).toBe("hunter2-secret");
+    const logged = JSON.stringify(log.records);
+    expect(logged).not.toContain("hunter2-secret");
+    expect(logged).toContain("***");
+    // The internal records keep the real value for repeat detection.
+    expect(JSON.stringify(result.steps)).toContain("hunter2-secret");
   });
 });
 

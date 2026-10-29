@@ -124,6 +124,25 @@ export interface ReflexDecision {
 export interface ReflexProvider {
   readonly name: string;
   decide(input: ReflexInput): Promise<ReflexDecision>;
+  /** One yes or no question, with a probability for true. Used by the approval gate. */
+  askNoul(input: { state: string; instructions: string; criteria?: { true: string; false: string } }): Promise<NoulAnswer>;
+}
+
+export interface NoulAnswer {
+  probability: number;
+  ms: number;
+  usage: Usage | null;
+  costUsd: number | null;
+}
+
+/** What a human is asked to approve. The service shows this and waits. */
+export interface ApprovalRequest {
+  action: BrowserAction;
+  question: string;
+  /** The reflex probability that the action is irreversible. */
+  probability: number;
+  url: string;
+  fingerprint: string;
 }
 
 export interface PlannerInput {
@@ -196,7 +215,7 @@ export interface StepRecord {
   /** The action step this record belongs to. Verify and idle records share the current step. */
   step: number;
   /** "action" is a browser action. "verify" is a planner verify call. "idle" is an answer the loop could not run. */
-  kind: "action" | "verify" | "idle" | "field";
+  kind: "action" | "verify" | "idle" | "field" | "guard" | "gate";
   goal: string;
   /** Reflex or planner name that decided the step. */
   source: string;
