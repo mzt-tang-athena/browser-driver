@@ -3,7 +3,7 @@ id: 0007
 title: Guardrails: allowlist, approval gate, caps, log redaction
 created: 2026-10-28
 priority: high
-assignee:
+assignee: opencode
 pr:
 depends: [0002]
 ---
