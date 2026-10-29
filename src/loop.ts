@@ -4,7 +4,7 @@
 
 import type { Driver } from "./driver/driver.ts";
 import { CONFIDENCE_THRESHOLD, DONE_PROBABILITY, IDLE_ANSWERS_PAUSE, MAX_STEPS, REPEAT_ESCALATE, REPEAT_PAUSE, REPEAT_WINDOW, STUCK_ESCALATE, STUCK_PAUSE, VERIFY_COOLDOWN_STEPS } from "./limits.ts";
-import type { Action, BrowserAction, Observation, Planner, PlannerDecision, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
+import type { Action, BrowserAction, FieldOffer, Observation, PageElement, Planner, PlannerDecision, PlannerFill, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
 
 export interface LoopOptions {
   goal: string;
@@ -15,6 +15,10 @@ export interface LoopOptions {
   maxSteps?: number;
   confidenceThreshold?: number;
   doneThreshold?: number;
+  /** Fill empty fields and selects before choosing an action. Default true. */
+  fillFields?: boolean;
+  /** Most fields to offer the planner in one step. Default 6. */
+  maxFields?: number;
 }
 
 /** The loop hands every record to the sink. The sink prints it, stores it, or both. */
@@ -24,6 +28,8 @@ export interface StepLogSink {
 
 const pct = (value: number): string => `${Math.round(value * 100)}%`;
 const firstLine = (text: string): string => String(text).split("\n")[0] as string;
+const fieldKey = (path: string, element: PageElement): string => `${path}|${element.ref}|${element.name}`;
+const fieldLabel = (element: PageElement): string => `${element.role} "${element.name}"`;
 
 export function describeAction(action: Action): string {
   switch (action.kind) {
@@ -59,6 +65,7 @@ export class ReflexLoop {
   private step = 0;
   private seq = 0;
   private noChange = 0;
+  private readonly handledFields = new Set<string>();
   private idleAnswers = 0;
   private verifyCooldown = 0;
   private forcedReason: string | null = null;
@@ -110,6 +117,8 @@ export class ReflexLoop {
 
   private async takeStep(): Promise<void> {
     const observation = await this.options.driver.observe();
+    // Fields first: the planner writes text before the loop chooses a click.
+    if ((this.options.fillFields ?? true) && (await this.fillFields(observation))) return;
     let decision: ReflexDecision | null = null;
 
     if (!this.forcedReason) {
@@ -179,6 +188,77 @@ export class ReflexLoop {
       return;
     }
     await this.act(observation, pick.action, decision, this.options.planner.name, null);
+  }
+
+  // The field phase: ask the planner for values before the loop chooses an action.
+  // Empty text fields and selects are offered once. A field the planner leaves
+  // alone stays alone, so the loop does not ask again for it.
+  private async fillFields(observation: Observation): Promise<boolean> {
+    const candidates = observation.elements
+      .filter((element) => !element.disabled)
+      .filter((element) => (element.kind === "type" && (element.value == null || element.value === "")) || element.kind === "select")
+      .filter((element) => !this.handledFields.has(fieldKey(observation.path, element)))
+      .slice(0, this.options.maxFields ?? 6);
+    if (candidates.length === 0) return false;
+
+    const offers: FieldOffer[] = candidates.map((element) => ({
+      ref: element.ref,
+      role: element.role,
+      name: element.name,
+      kind: element.kind === "select" ? "select" : "type",
+      value: element.value,
+      options: element.options,
+    }));
+
+    let fill: PlannerFill;
+    try {
+      fill = await this.options.planner.fill({ goal: this.options.goal, observation, recentSteps: this.recentSteps(), fields: offers });
+    } catch (error) {
+      const text = `fill failed: ${firstLine(error instanceof Error ? error.message : String(error))}`;
+      this.idle(observation, null, null, text, "The planner could not fill the fields. Asking again.");
+      return true;
+    }
+    this.stats.planner.calls += 1;
+    this.stats.planner.ms += fill.ms;
+    this.stats.planner.costUsd += fill.costUsd ?? 0;
+    for (const element of candidates) this.handledFields.add(fieldKey(observation.path, element));
+
+    const actions: BrowserAction[] = [];
+    for (const answer of fill.fields) {
+      const element = candidates.find((candidate) => candidate.ref === answer.ref);
+      if (!element || answer.value == null || answer.value === "") continue;
+      if (element.kind === "select") {
+        if (element.options.length > 0 && !element.options.includes(answer.value)) continue;
+        actions.push({ kind: "select", ref: element.ref, option: answer.value, label: fieldLabel(element) });
+      } else {
+        actions.push({ kind: "type", ref: element.ref, text: answer.value, label: fieldLabel(element) });
+      }
+    }
+
+    const filled = actions.map((action) => (action.kind === "type" ? `${action.label}="${action.text}"` : action.kind === "select" ? `${action.label}="${action.option}"` : action.label));
+    this.write({
+      step: this.step,
+      kind: "field",
+      goal: this.options.goal,
+      source: this.options.planner.name,
+      probability: null,
+      path: observation.path,
+      fingerprint: observation.fingerprint,
+      elements: observation.elements,
+      menu: observation.menu,
+      questions: null,
+      answers: null,
+      options: [],
+      action: null,
+      text: `fill ${offers.length} field(s)`,
+      result: actions.length > 0 ? `filled ${filled.join(", ")}` : `left alone: ${offers.map((offer) => offer.name).join(", ")}`,
+      pageAfter: { url: observation.url, title: observation.title, outline: observation.outline },
+      ms: fill.ms,
+      costUsd: fill.costUsd,
+    });
+
+    for (const action of actions) await this.act(observation, action, null, this.options.planner.name, null);
+    return actions.length > 0;
   }
 
   // A planner answer that runs nothing moves the run nowhere. A few in a row need a human.

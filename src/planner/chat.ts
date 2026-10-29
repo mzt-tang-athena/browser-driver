@@ -4,7 +4,7 @@
 // caller sees an error and counts it as an idle answer.
 
 import { buildState } from "../state.ts";
-import type { Action, Observation, PageElement, Planner, PlannerDecision, PlannerVerify, Usage } from "../types.ts";
+import type { Action, FieldAnswer, FieldOffer, Observation, PageElement, Planner, PlannerDecision, PlannerFill, PlannerVerify, Usage } from "../types.ts";
 
 export const OPENCODE_CHAT_BASE_URL = "https://opencode.ai/inference/openai/v1";
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -153,6 +153,45 @@ function verifyPrompt(goal: string, observation: Observation, failure: string | 
     .join("\n\n");
 }
 
+const FILL_RULES = [
+  'Give a value for each field the goal needs. Answer with one JSON object: {"fields":[{"ref":"e1","value":"Jane"},{"ref":"e2","value":null}],"reason":"..."}',
+  "Use null when the goal does not name a value, or the current value is right.",
+  "For a select, value must be one of its options.",
+  "Never invent a ref. Leave a field alone when you are unsure.",
+].join("\n");
+
+function fillPrompt(input: { goal: string; observation: Observation; recentSteps: string[]; fields: FieldOffer[] }, failure: string | null): string {
+  const fields = input.fields
+    .map((field) => {
+      const current = field.value == null || field.value === "" ? "(empty)" : `"${field.value}"`;
+      const options = field.kind === "select" ? ` options: ${field.options.join(" | ")}` : "";
+      return `[${field.ref}] ${field.role} "${field.name}" = ${current}${options}`;
+    })
+    .join("\n");
+  return [
+    buildState(input.goal, input.observation, input.recentSteps),
+    `Fields that need a value now:\n${fields}`,
+    FILL_RULES,
+    failure ? `Your last answer could not be used: ${failure}. Answer again.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function parseFieldAnswer(value: unknown, offers: FieldOffer[]): FieldAnswer {
+  const answer = asRecord(value);
+  const ref = asString(answer.ref);
+  const offer = ref ? offers.find((candidate) => candidate.ref === ref) : undefined;
+  if (!offer) throw new Error(`"${ref ?? ""}" is not a field on this page`);
+  if (answer.value == null) return { ref: offer.ref, value: null };
+  const fieldValue = asString(answer.value);
+  if (fieldValue == null) return { ref: offer.ref, value: null };
+  if (offer.kind === "select" && offer.options.length > 0 && !offer.options.includes(fieldValue)) {
+    throw new Error(`"${fieldValue}" is not an option of "${offer.name}"; it lists: ${offer.options.join(", ")}`);
+  }
+  return { ref: offer.ref, value: fieldValue };
+}
+
 interface ChatAnswer {
   content: string;
   usage: Usage;
@@ -232,6 +271,36 @@ export class ChatPlanner implements Planner {
       }
     }
     throw new Error("The planner gave no verdict.");
+  }
+
+  async fill(input: { goal: string; observation: Observation; recentSteps: string[]; fields: FieldOffer[] }): Promise<PlannerFill> {
+    const started = Date.now();
+    const totals = { input: 0, output: 0 };
+    let failure: string | null = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const answer = await this.complete([
+        { role: "system", content: SYSTEM },
+        { role: "user", content: fillPrompt(input, failure) },
+      ]);
+      totals.input += answer.usage.input_tokens ?? 0;
+      totals.output += answer.usage.output_tokens ?? 0;
+      try {
+        const parsed = asRecord(parseJson(answer.content));
+        const raw = Array.isArray(parsed.fields) ? parsed.fields : [];
+        const fields = raw.map((entry) => parseFieldAnswer(entry, input.fields));
+        return {
+          fields,
+          reason: asString(parsed.reason) ?? "the planner filled the fields",
+          ms: Date.now() - started,
+          usage: { input_tokens: totals.input, output_tokens: totals.output },
+          costUsd: this.cost(totals),
+        };
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error);
+        if (attempt === 2) throw new Error(`The planner could not fill the fields: ${failure}`);
+      }
+    }
+    throw new Error("The planner gave no field values.");
   }
 
   private cost(totals: { input: number; output: number }): number | null {

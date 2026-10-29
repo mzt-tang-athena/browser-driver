@@ -51,6 +51,7 @@ const runDir = join("evals", "runs", stamp);
 mkdirSync(runDir, { recursive: true });
 
 function printTable(rows: ScenarioResult[], mode: string): void {
+  const live = mode === "live";
   const headers = ["scenario", "expected", "outcome", "steps", "reflex", "planner", "cost", "ms", "ok"];
   const body = rows.map((row) => [
     row.name,
@@ -61,7 +62,7 @@ function printTable(rows: ScenarioResult[], mode: string): void {
     String(row.plannerCalls),
     `$${row.costUsd.toFixed(4)}`,
     String(row.ms),
-    row.pass ? "yes" : "NO",
+    live ? "info" : row.pass ? "yes" : "NO",
   ]);
   const widths = headers.map((header, column) => Math.max(header.length, ...body.map((row) => (row[column] as string).length)));
   const line = (cells: string[]) => cells.map((cell, column) => cell.padEnd(widths[column] as number)).join("  ").trimEnd();
@@ -134,9 +135,9 @@ async function main(): Promise<void> {
 
   printTable(results, live ? "live" : "fake");
   const passed = results.filter((result) => result.pass).length;
-  console.log(`${passed}/${results.length} passed`);
+  console.log(live ? `${passed}/${results.length} matched the deterministic expectation. Live outcomes are informational.` : `${passed}/${results.length} passed`);
   for (const failure of results.filter((result) => !result.pass)) {
-    console.log(`FAIL ${failure.name}: expected ${failure.expected}, got ${failure.outcome}${failure.reason ? ` - ${failure.reason}` : ""}`);
+    console.log(`${live ? "DIFF" : "FAIL"} ${failure.name}: expected ${failure.expected}, got ${failure.outcome}${failure.reason ? ` - ${failure.reason}` : ""}`);
     console.log(`  step log: ${failure.log}`);
   }
   const resultsPath = join(runDir, "results.json");

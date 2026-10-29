@@ -22,14 +22,22 @@ const nameField = el("e7", "textbox", "Your name", "type");
 
 const startPage = observation({
   fingerprint: "start",
-  outline: '- button "Order latte" [ref=e4]\n- textbox "Your name" [ref=e7]',
-  elements: [orderButton, nameField],
+  outline: '- button "Order latte" [ref=e4]',
+  elements: [orderButton],
   menu: [item(orderButton)],
 });
 
 const donePage = observation({
   fingerprint: "done",
-  outline: '- button "Order latte" [ref=e4]\n- textbox "Your name" [ref=e7]\n- status: Latte ordered. Thank you!',
+  outline: '- button "Order latte" [ref=e4]\n- status: Latte ordered. Thank you!',
+  elements: [orderButton],
+  menu: [item(orderButton)],
+});
+
+// A page with a field, for the tests that type outside the field phase.
+const cooldownStart = observation({
+  fingerprint: "start",
+  outline: '- button "Order latte" [ref=e4]\n- textbox "Your name" [ref=e7]',
   elements: [orderButton, nameField],
   menu: [item(orderButton)],
 });
@@ -44,12 +52,12 @@ const typed = (text: string) =>
   observation({
     fingerprint: `after-${text}`,
     outline: `- textbox "Your name" [ref=e7]: ${text}`,
-    elements: [nameField],
+    elements: [{ ...nameField, value: text }],
   });
 
-async function run(driver: Driver, reflex: ReflexProvider, planner: Planner, maxSteps?: number): Promise<{ result: RunResult; log: CaptureLog }> {
+async function run(driver: Driver, reflex: ReflexProvider, planner: Planner, options: { maxSteps?: number; fillFields?: boolean } = {}): Promise<{ result: RunResult; log: CaptureLog }> {
   const log = new CaptureLog();
-  const loop = new ReflexLoop({ goal: "Order a latte", reflex, planner, driver, log, maxSteps });
+  const loop = new ReflexLoop({ goal: "Order a latte", reflex, planner, driver, log, maxSteps: options.maxSteps, fillFields: options.fillFields });
   return { result: await loop.run(), log };
 }
 
@@ -146,14 +154,14 @@ describe("escalation constants", () => {
         return { kind: "type", ref: "e7", text: calls % 2 === 1 ? "x" : "y", label: "type into the name field" };
       },
     });
-    const { result, log } = await run(driver, reflex, planner, 3);
+    const { result, log } = await run(driver, reflex, planner, { maxSteps: 3, fillFields: false });
 
     expect(result.outcome).toBe("max-steps");
     expect(log.records.filter((record) => record.kind === "action")).toHaveLength(3);
   });
 
   it("waits 3 steps between two verify tries", async () => {
-    const driver = new FakeDriver(startPage, (action) => (action.kind === "type" ? typed(action.text) : startPage));
+    const driver = new FakeDriver(cooldownStart, (action) => (action.kind === "type" ? typed(action.text) : cooldownStart));
     // The title matches on every page, so the reflex proposes done at every check.
     const reflex = new FakeReflex({ rules: [{ when: /test page/i, done: 0.95 }] });
     let verifies = 0;
@@ -168,7 +176,7 @@ describe("escalation constants", () => {
         return { kind: "type", ref: "e7", text: `x${decides}`, label: "type into the name field" };
       },
     });
-    const { result, log } = await run(driver, reflex, planner);
+    const { result, log } = await run(driver, reflex, planner, { fillFields: false });
 
     expect(result.outcome).toBe("done");
     expect(verifies).toBe(2);
@@ -208,6 +216,7 @@ describe("escalation constants", () => {
         throw new Error("the model answered nonsense");
       },
       verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: null }),
+      fill: async () => ({ fields: [], reason: "none", ms: 0, usage: null, costUsd: null }),
     };
     const { result, log } = await run(driver, reflex, failing);
 
@@ -230,12 +239,90 @@ describe("escalation constants", () => {
         return { action: { kind: "type", ref: "e7", text: `x${calls}`, label: "type into the name field" }, reason: "type", ms: 1, usage: null, costUsd: 0.25 };
       },
       verify: async () => ({ done: false, reason: "no", ms: 0, usage: null, costUsd: 0.5 }),
+      fill: async () => ({ fields: [], reason: "none", ms: 0, usage: null, costUsd: null }),
     };
-    const { result } = await run(driver, reflex, pricey, 2);
+    const { result } = await run(driver, reflex, pricey, { maxSteps: 2, fillFields: false });
 
     expect(result.outcome).toBe("max-steps");
     expect(result.stats.planner.calls).toBe(2);
     expect(result.stats.planner.costUsd).toBeCloseTo(0.5);
+  });
+});
+
+describe("the field phase", () => {
+  const sizeSelect = el("e8", "combobox", "Size", "select", { options: ["Small", "Large"], value: "Small" });
+  const placeButton = el("e9", "button", "Place order");
+
+  const form = (name: string, size: string, placed = false) =>
+    observation({
+      fingerprint: `form-${name}-${size}-${placed}`,
+      outline: [
+        `- textbox "Your name" [ref=e7]${name ? ` = "${name}"` : ""}`,
+        `- combobox "Size" [ref=e8] = "${size}" options: Small | Large`,
+        '- button "Place order" [ref=e9]',
+        placed ? `- status: Order placed for ${name} (${size})` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      elements: [{ ...nameField, value: name || null }, { ...sizeSelect, value: size }, placeButton],
+      menu: [item(placeButton)],
+    });
+
+  it("fills an empty field and a select before the click, once", async () => {
+    let name = "";
+    let size = "Small";
+    const driver = new FakeDriver(form("", "Small"), (action) => {
+      if (action.kind === "type") name = action.text;
+      if (action.kind === "select") size = action.option;
+      if (action.kind === "click") return form(name, size, true);
+      return form(name, size);
+    });
+    const reflex = new FakeReflex({ rules: [{ when: /order placed/i, done: 0.95 }, { pick: /place order/i }] });
+    const planner = new FakePlanner({
+      fill: (input) =>
+        input.fields.map((field) =>
+          field.name === "Your name" ? { ref: field.ref, value: "Jane" } : field.name === "Size" ? { ref: field.ref, value: "Large" } : { ref: field.ref, value: null },
+        ),
+      verify: (input) => ({ done: /order placed/i.test(input.observation.fullOutline), reason: "checked" }),
+    });
+    const { result, log } = await run(driver, reflex, planner);
+
+    expect(result.outcome).toBe("done");
+    expect(log.records.map((record) => record.kind)).toEqual(["field", "action", "action", "action", "verify"]);
+    expect(driver.actions.map((action) => action.kind)).toEqual(["type", "select", "click"]);
+    // The fields are filled once, not on every step.
+    expect(driver.actions.filter((action) => action.kind === "type")).toHaveLength(1);
+    expect(log.records[0]?.result).toContain('"Jane"');
+    expect(log.records[0]?.result).toContain('"Large"');
+  });
+
+  it("leaves a field alone when the planner says null", async () => {
+    const driver = new FakeDriver(form("", "Small"), (action) => (action.kind === "click" ? form("", "Small", true) : form("", "Small")));
+    const reflex = new FakeReflex({ rules: [{ when: /order placed/i, done: 0.95 }, { pick: /place order/i }] });
+    const planner = new FakePlanner({ verify: () => ({ done: true, reason: "confirmed" }) });
+    const { result, log } = await run(driver, reflex, planner);
+
+    expect(result.outcome).toBe("done");
+    expect(log.records.map((record) => record.kind)).toEqual(["field", "action", "verify"]);
+    expect(log.records[0]?.result).toContain("left alone");
+    expect(driver.actions.map((action) => action.kind)).toEqual(["click"]);
+  });
+
+  it("counts a fill failure as an idle answer", async () => {
+    const driver = new FakeDriver(form("", "Small"));
+    const reflex = new FakeReflex({});
+    const planner = new FakePlanner({
+      fill: () => {
+        throw new Error("the model answered nonsense");
+      },
+    });
+    const { result, log } = await run(driver, reflex, planner);
+
+    expect(result.outcome).toBe("paused");
+    expect(result.reason).toContain("could not run");
+    const idles = log.records.filter((record) => record.kind === "idle");
+    expect(idles).toHaveLength(3);
+    expect(idles[0]?.text).toContain("fill failed");
   });
 });
 

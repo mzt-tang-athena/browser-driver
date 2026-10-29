@@ -47,21 +47,17 @@ export const scenarios: EvalScenario[] = [
     fixture: "form.html",
     expect: "done",
     fake: () => ({
-      // The reflex declines, so the planner does all the work.
-      reflex: new FakeReflex({}),
+      // The field phase fills the form, then the reflex clicks the button.
+      reflex: new FakeReflex({ rules: [{ when: /order placed/i, done: 0.95 }, { pick: /place order/i }] }),
       planner: new FakePlanner({
-        decide: (input) => {
-          const { observation } = input;
-          if (says(observation, /order placed for jane \(large\)/i)) return { kind: "done", reason: "the order is placed" };
-          const name = observation.elements.find((element) => element.name === "Your name");
-          const size = observation.elements.find((element) => element.name === "Size");
-          const place = observation.menu.find((entry) => /place order/i.test(entry.label));
-          if (name && !/= "Jane"/.test(observation.fullOutline)) return { kind: "type", ref: name.ref, text: "Jane", label: 'textbox "Your name"' };
-          if (size && !/= "Large"/.test(observation.fullOutline)) return { kind: "select", ref: size.ref, option: "Large", label: 'combobox "Size"' };
-          if (place) return { kind: "click", ref: place.ref, label: place.label };
-          return { kind: "blocked", reason: "the form has no place button" };
-        },
-        verify: () => ({ done: false, reason: "the planner finishes this run itself" }),
+        fill: (input) =>
+          input.fields.map((field) =>
+            field.name === "Your name" ? { ref: field.ref, value: "Jane" } : field.name === "Size" ? { ref: field.ref, value: "Large" } : { ref: field.ref, value: null },
+          ),
+        verify: (input) => ({
+          done: says(input.observation, /order placed for jane \(large\)/i),
+          reason: says(input.observation, /order placed for jane \(large\)/i) ? "the order is placed" : "the order is not placed",
+        }),
       }),
     }),
   },
@@ -71,18 +67,13 @@ export const scenarios: EvalScenario[] = [
     fixture: "select.html",
     expect: "done",
     fake: () => ({
-      reflex: new FakeReflex({}),
+      reflex: new FakeReflex({ rules: [{ when: /shipping: express/i, done: 0.95 }, { pick: /save/i }] }),
       planner: new FakePlanner({
-        decide: (input) => {
-          const { observation } = input;
-          if (says(observation, /shipping: express/i)) return { kind: "done", reason: "express shipping is saved" };
-          const field = observation.elements.find((element) => element.name === "Shipping");
-          const save = observation.menu.find((entry) => /save/i.test(entry.label));
-          if (field && !/= "Express"/.test(observation.fullOutline)) return { kind: "select", ref: field.ref, option: "Express", label: 'combobox "Shipping"' };
-          if (save) return { kind: "click", ref: save.ref, label: save.label };
-          return { kind: "blocked", reason: "the shipping form is incomplete" };
-        },
-        verify: () => ({ done: false, reason: "the planner finishes this run itself" }),
+        fill: (input) => input.fields.map((field) => (field.name === "Shipping" ? { ref: field.ref, value: "Express" } : { ref: field.ref, value: null })),
+        verify: (input) => ({
+          done: says(input.observation, /shipping: express/i),
+          reason: says(input.observation, /shipping: express/i) ? "express shipping is saved" : "express shipping is not saved",
+        }),
       }),
     }),
   },

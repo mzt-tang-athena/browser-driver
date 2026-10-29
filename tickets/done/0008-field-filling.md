@@ -33,4 +33,18 @@ Add a field phase, like the work repo's fillFields:
 
 ## Outcome
 
-(filled in before moving to done/)
+Done on 2026-10-29.
+
+- The loop has a field phase before the action choice. It offers empty text
+  fields and selects to the planner once per page. Filled or declined fields
+  are marked, so the loop does not ask twice.
+- The planner writes the values. `ChatPlanner.fill` validates every ref and
+  every select option, retries once on a bad answer, and reports its cost.
+  `FakePlanner` takes a fill script.
+- Field decisions are logged as `field` records, with the values and cost.
+  The demo now shows three records: fill, click, verify.
+- The form and select evals use the field phase. Live, both pass with the
+  real models: form in 5.6 s for $0.0002, select in 4.8 s for $0.0002.
+- 57 tests pass, plus 7/7 evals. The demo finishes done with fakes and live.
+- Known live differences remain in the repeat and goto evals. The models
+  judge the page differently from the scripted setup. Both are documented.

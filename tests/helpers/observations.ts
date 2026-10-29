@@ -8,6 +8,7 @@ export const el = (ref: string, role: string, name: string, kind: ElementKind = 
   name,
   kind,
   options: [],
+  value: null,
   url: null,
   disabled: false,
   checked: null,
