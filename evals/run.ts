@@ -11,7 +11,7 @@ import { ReflexLoop } from "../src/loop.ts";
 import { ChatPlanner, OPENCODE_CHAT_BASE_URL } from "../src/planner/chat.ts";
 import { OPENCODE_CONSOLE_ENDPOINT, SystemOneReflex } from "../src/reflex/systemone.ts";
 import { resolveApiKey } from "../src/reflex/keysource.ts";
-import type { Outcome, Planner, ReflexProvider, StepRecord } from "../src/types.ts";
+import type { Outcome, StepRecord } from "../src/types.ts";
 import { scenarios, type ScenarioModels } from "./scenarios.ts";
 
 interface ScenarioResult {

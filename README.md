@@ -42,7 +42,8 @@ agents faster and cheaper by about ten times.
 See `docs/adr/`. Start with 0001 (TypeScript), 0002 (driver as a
 service), 0003 (reflex and planner roles), 0004 (event schema in the
 contracts repo). Read 0005 for the loop's ported limits and the
-human-input action. Read 0006 for where the live reflex runs.
+human-input action. Read 0006 for where the live reflex runs. Read 0007
+for the eval shape and 0008 for the driver port.
 
 ## Related
 

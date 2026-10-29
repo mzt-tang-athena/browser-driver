@@ -104,9 +104,4 @@ describe("execute", () => {
     expect(other.url()).toContain("data:text/html");
     await other.close();
   });
-
-  it("refuses the run-ending kinds", async () => {
-    await expect(execute(page, { kind: "done", reason: "no" })).rejects.toThrow(/ends the run/);
-    await expect(execute(page, { kind: "human-input", ask: "no" })).rejects.toThrow(/ends the run/);
-  });
 });

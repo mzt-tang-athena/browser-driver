@@ -4,7 +4,7 @@
 
 import type { Driver } from "./driver/driver.ts";
 import { CONFIDENCE_THRESHOLD, DONE_PROBABILITY, IDLE_ANSWERS_PAUSE, MAX_STEPS, REPEAT_ESCALATE, REPEAT_PAUSE, REPEAT_WINDOW, STUCK_ESCALATE, STUCK_PAUSE, VERIFY_COOLDOWN_STEPS } from "./limits.ts";
-import type { Action, Observation, Planner, PlannerDecision, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
+import type { Action, BrowserAction, Observation, Planner, PlannerDecision, ReflexDecision, ReflexProvider, RunResult, RunStats, StepRecord } from "./types.ts";
 
 export interface LoopOptions {
   goal: string;
@@ -132,7 +132,7 @@ export class ReflexLoop {
       const item = choice ? observation.menu.find((candidate) => candidate.id === choice.id) : undefined;
       const repeated = item ? this.triedFrom(observation, item.label) : false;
       if (item && choice && !repeated && choice.probability >= (this.options.confidenceThreshold ?? CONFIDENCE_THRESHOLD)) {
-        const action: Action = { kind: "click", ref: item.ref, role: item.role, label: item.label };
+        const action: BrowserAction = { kind: "click", ref: item.ref, role: item.role, label: item.label };
         return this.act(observation, action, decision, this.options.reflex.name, choice.probability);
       }
       if (repeated && item) this.forcedReason = `The reflex chose "${item.label}" again, but that was already done from this page state and did not help.`;
@@ -266,7 +266,7 @@ export class ReflexLoop {
     this.finish(action.kind === "done" ? "done" : action.kind === "blocked" ? "blocked" : "needs-human-input", reason);
   }
 
-  private async act(observation: Observation, action: Action, decision: ReflexDecision | null, source: string, probability: number | null): Promise<void> {
+  private async act(observation: Observation, action: BrowserAction, decision: ReflexDecision | null, source: string, probability: number | null): Promise<void> {
     const started = Date.now();
     this.step += 1;
     let failure: string | null = null;
