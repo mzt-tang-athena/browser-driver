@@ -4,7 +4,7 @@
 import type { Page } from "playwright";
 import { execute, settle } from "../actuator.ts";
 import { observe } from "../eyes.ts";
-import type { Action, Observation } from "../types.ts";
+import type { BrowserAction, Observation } from "../types.ts";
 import type { Driver } from "./driver.ts";
 
 export class PlaywrightDriver implements Driver {
@@ -14,7 +14,7 @@ export class PlaywrightDriver implements Driver {
     return observe(this.page);
   }
 
-  execute(action: Action): Promise<void> {
+  execute(action: BrowserAction): Promise<void> {
     return execute(this.page, action);
   }
 

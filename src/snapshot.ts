@@ -280,11 +280,3 @@ export function messages(tree: SnapshotNode): string[] {
   return found;
 }
 
-// The page's own headings, in page order.
-export function headings(tree: SnapshotNode): string[] {
-  const found: string[] = [];
-  walk(tree, (node) => {
-    if (node.role === "heading" && node.name) found.push(node.name);
-  });
-  return found;
-}

@@ -9,7 +9,6 @@ import type { ElementKind, MenuItem, Observation, PageElement } from "./types.ts
 
 const OUTLINE_CHARS = 15_000;
 
-const CLICK_ROLES = new Set(["button", "link", "checkbox", "radio", "switch", "tab", "menuitem", "option", "treeitem", "slider"]);
 const TYPE_ROLES = new Set(["textbox", "searchbox", "spinbutton"]);
 
 export function kindOf(role: string): ElementKind {

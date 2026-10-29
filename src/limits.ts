@@ -7,8 +7,6 @@ export const MAX_OPTIONS = 24;
 export const MAX_MENU_PARTS = 2;
 /** Escape option that lets the model reject a menu part. */
 export const OTHER = "other";
-/** Escape option for field questions. */
-export const NONE = "none";
 /** Long labels, such as a consent checkbox with two links, cost context without helping the choice. */
 export const LABEL_CHARS = 90;
 

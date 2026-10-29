@@ -61,6 +61,9 @@ export type Action =
 
 export type Outcome = "done" | "blocked" | "needs-human-input" | "paused" | "max-steps" | "error";
 
+/** The actions the browser runs. The run-ending kinds never cross the Driver port. */
+export type BrowserAction = Extract<Action, { kind: "click" | "type" | "select" | "goto" | "scroll" | "wait" }>;
+
 // --- Reflex questions and answers, in the Jev-compatible systemone shape ---
 
 export interface ReflexQuestion {

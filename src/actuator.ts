@@ -2,7 +2,7 @@
 // with scroll added and the human-input kind handled by the loop, not the browser.
 
 import type { Page } from "playwright";
-import type { Action } from "./types.ts";
+import type { BrowserAction } from "./types.ts";
 
 export const ACTION_TIMEOUT_MS = 5000;
 // Radios and checkboxes that sit visually hidden behind a styled label cannot take a pointer click.
@@ -22,7 +22,7 @@ async function click(page: Page, ref: string, role: string | undefined): Promise
 }
 
 /** Runs the browser part of an action. The done, blocked and human-input kinds never reach this. */
-export async function execute(page: Page, action: Action): Promise<void> {
+export async function execute(page: Page, action: BrowserAction): Promise<void> {
   switch (action.kind) {
     case "click":
       return click(page, action.ref, action.role);
@@ -50,10 +50,6 @@ export async function execute(page: Page, action: Action): Promise<void> {
     }
     case "wait":
       return new Promise((resolve) => setTimeout(resolve, 2000));
-    case "done":
-    case "blocked":
-    case "human-input":
-      throw new Error(`The "${action.kind}" kind ends the run. The loop handles it, not the actuator.`);
     default: {
       const never: never = action;
       throw new Error(`Unknown action kind "${JSON.stringify(never)}".`);
