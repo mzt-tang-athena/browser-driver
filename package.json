@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "demo": "tsx src/index.ts",
     "eval": "tsx evals/run.ts",
-    "service": "tsx src/service/main.ts"
+    "service": "tsx src/service/main.ts",
+    "cli": "tsx src/cli.ts"
   },
   "dependencies": {
     "playwright": "^1.55.0",
@@ -23,5 +24,8 @@
     "tsx": "^4.19.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
+  },
+  "bin": {
+    "browser-driver": "./bin/browser-driver.mjs"
   }
 }

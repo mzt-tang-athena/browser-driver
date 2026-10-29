@@ -68,16 +68,15 @@ npm run service
 Then start a headed run:
 
 ```sh
-curl -s -X POST http://127.0.0.1:8787/runs \
-  -H "authorization: Bearer $BROWSER_DRIVER_TOKEN" \
-  -H "content-type: application/json" \
-  -d '{"goal":"Log in and open the invoice list","url":"https://example.test/login","profile":"work","headed":true,"allowlist":["example.test"]}'
+browser-driver run --goal "Log in and open the invoice list" \
+  --url "https://example.test/login" --profile work --headed \
+  --allowlist example.test
 ```
 
 The window shows in the viewer. A run that needs a person ends
 `needs-human-input` and keeps the browser open. Log in by hand in the
-viewer, then `POST /runs/<id>/stop`. The profile keeps the login for later
-runs.
+viewer, then `browser-driver stop <run-id>`. The profile keeps the login
+for later runs.
 
 ## Limits
 
