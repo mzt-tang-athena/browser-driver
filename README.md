@@ -17,6 +17,7 @@ agents faster and cheaper by about ten times.
 - Driver service: Playwright, persistent browser profiles, and a small
   HTTP API
 - Loop: observe, ask the reflex, act, escalate to the planner, verify
+- CLI: a thin client over the HTTP API for people and shells
 - Web UI (later): goal input, run log, live view, approvals
 - Voice (later): capture on the client, goal text on the server
 
@@ -36,7 +37,8 @@ agents faster and cheaper by about ten times.
   pauses before an irreversible action, and step and cost caps stop a run.
   The step log masks typed values (ADR 0009). The service sets the gate and
   the allowlist for each run
-- `npm run service` starts the driver service (see below)
+- `npm run service` starts the driver service, and `npm run --silent cli --`
+  talks to it (see below)
 
 ## Service
 
@@ -58,6 +60,38 @@ curl -s -X POST http://127.0.0.1:8787/runs \
 
 The answer carries the run id. Read the event stream with
 `GET /runs/<id>/events?follow=1`. The stream ends with `run.finished`.
+Pass the last `next` value as `after` on the next call. Do not ask with
+`after=0` in a loop: it returns the whole stream every time.
+
+## CLI
+
+The CLI is a thin client over the same API. `npm link` puts
+`browser-driver` on your path. Without it, use
+`npm run --silent cli --` in place of `browser-driver`.
+
+```sh
+browser-driver run --goal "Order a latte" \
+  --url "file://$PWD/fixtures/latte.html" --allowlist file
+browser-driver events <run-id> --follow
+browser-driver approve <run-id> --yes
+browser-driver stop <run-id>
+browser-driver observe <run-id>
+browser-driver act <run-id> --action '{"kind":"click","ref":"e4","label":"click button \"Go\""}'
+```
+
+`run` waits for the end and prints one JSON object. Add `--no-wait` to get
+the run id at once, and `--quiet` to drop the progress lines on stderr.
+`events --follow` prints one JSON line per event. Config comes from
+`--base-url` and `--token`, or from `BROWSER_DRIVER_URL` and
+`BROWSER_DRIVER_TOKEN`.
+
+| Exit code | Outcome |
+|---|---|
+| 0 | done, or still running |
+| 1 | error |
+| 2 | paused or needs-human-input |
+| 3 | blocked |
+| 4 | max-steps |
 
 | Setting | Default | Purpose |
 |---|---|---|
@@ -82,11 +116,11 @@ outcomes close the browser at once.
 
 ### Profiles and a manual login
 
-Pass `"profile": "work"` in the run request to keep cookies and logins in
-`profiles/work`. To log in once by hand, start a headed run on the login
-page (`"headed": true`). The loop asks for a human, the window stays open,
-and you log in. Then `POST /runs/<id>/stop`. The profile keeps the session
-for every later run.
+Pass `--profile work` to keep cookies and logins in `profiles/work`. To
+log in once by hand, start a headed run on the login page (`--headed`). The
+loop asks for a human, the window stays open, and you log in. Then
+`browser-driver stop <run-id>`. The profile keeps the session for every
+later run.
 
 ### Live view
 
