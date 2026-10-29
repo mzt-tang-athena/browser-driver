@@ -18,8 +18,15 @@ changes.
 
 The live run uses the real models. It needs `OPENCODE_API_KEY`, or a connected
 OpenCode on the machine. Live outcomes are informational: the runner prints
-the table but does not fail. Form and select goals need ticket 0008 (field
-filling) before the live run can pass them.
+the table but does not fail. It prints `DIFF` where the real models reach a
+different outcome than the scripted ones.
+
+Two differences are known and expected:
+
+- `repeat`: the real model reads the page and says the goal is done. The
+  scripted run forces the stuck limit. Both are correct for their setup.
+- `goto`: the goal does not name a URL, so the real planner asks for one.
+  The scripted run knows the target URL.
 
 ## Scenarios
 

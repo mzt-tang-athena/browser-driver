@@ -13,6 +13,8 @@ export interface PageElement {
   kind: ElementKind;
   /** Options of a select element, in page order. Empty for other roles. */
   options: string[];
+  /** Current value of a field, or the selected option of a select. Null when empty. */
+  value: string | null;
   /** Link target, for links. */
   url: string | null;
   disabled: boolean;
@@ -132,6 +134,31 @@ export interface PlannerInput {
   reason: string;
 }
 
+/** One field the planner may fill. Values are unset or unchanged. */
+export interface FieldOffer {
+  ref: string;
+  role: string;
+  name: string;
+  kind: "type" | "select";
+  /** The current value, or null when empty. */
+  value: string | null;
+  options: string[];
+}
+
+export interface FieldAnswer {
+  ref: string;
+  /** The value to type or the option to select. Null leaves the field alone. */
+  value: string | null;
+}
+
+export interface PlannerFill {
+  fields: FieldAnswer[];
+  reason: string;
+  ms: number;
+  usage: Usage | null;
+  costUsd: number | null;
+}
+
 export interface PlannerDecision {
   action: Action;
   reason: string;
@@ -153,6 +180,8 @@ export interface Planner {
   readonly name: string;
   decide(input: PlannerInput): Promise<PlannerDecision>;
   verify(input: { goal: string; observation: Observation }): Promise<PlannerVerify>;
+  /** Values for fields on the page, before the next action is chosen. */
+  fill(input: { goal: string; observation: Observation; recentSteps: string[]; fields: FieldOffer[] }): Promise<PlannerFill>;
 }
 
 // --- The step log ---
@@ -167,7 +196,7 @@ export interface StepRecord {
   /** The action step this record belongs to. Verify and idle records share the current step. */
   step: number;
   /** "action" is a browser action. "verify" is a planner verify call. "idle" is an answer the loop could not run. */
-  kind: "action" | "verify" | "idle";
+  kind: "action" | "verify" | "idle" | "field";
   goal: string;
   /** Reflex or planner name that decided the step. */
   source: string;
@@ -188,6 +217,8 @@ export interface StepRecord {
   result: string;
   pageAfter: { url: string; title: string; outline: string };
   ms: number;
+  /** Known cost of this record in US dollars, for model calls. */
+  costUsd?: number | null;
 }
 
 export interface RunStats {

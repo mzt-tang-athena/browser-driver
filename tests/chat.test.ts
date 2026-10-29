@@ -11,9 +11,9 @@ const observation: Observation = {
   outline: '- textbox "Name" [ref=e1]\n- combobox "Size" [ref=e2] options: Small | Large\n- button "Go" [ref=e3]',
   fullOutline: '- textbox "Name" [ref=e1]\n- combobox "Size" [ref=e2] options: Small | Large\n- button "Go" [ref=e3]',
   elements: [
-    { ref: "e1", role: "textbox", name: "Name", kind: "type", options: [], url: null, disabled: false, checked: null },
-    { ref: "e2", role: "combobox", name: "Size", kind: "select", options: ["Small", "Large"], url: null, disabled: false, checked: null },
-    { ref: "e3", role: "button", name: "Go", kind: "click", options: [], url: null, disabled: false, checked: null },
+    { ref: "e1", role: "textbox", name: "Name", kind: "type", options: [], value: null, url: null, disabled: false, checked: null },
+    { ref: "e2", role: "combobox", name: "Size", kind: "select", options: ["Small", "Large"], value: "Small", url: null, disabled: false, checked: null },
+    { ref: "e3", role: "button", name: "Go", kind: "click", options: [], value: null, url: null, disabled: false, checked: null },
   ],
   menu: [{ id: "e3", label: 'click button "Go"', ref: "e3", role: "button" }],
   messages: [],
@@ -118,5 +118,35 @@ describe("ChatPlanner.verify", () => {
   it("needs a boolean done", async () => {
     vi.stubGlobal("fetch", async () => answer('{"done": "yes", "reason": "no"}'));
     await expect(planner().verify({ goal: "Order a latte", observation })).rejects.toThrow(/done/);
+  });
+});
+
+describe("ChatPlanner.fill", () => {
+  const fields = [
+    { ref: "e1", role: "textbox", name: "Name", kind: "type" as const, value: null, options: [] },
+    { ref: "e2", role: "combobox", name: "Size", kind: "select" as const, value: "Small", options: ["Small", "Large"] },
+  ];
+  const fillInput = { goal: "Order a large coffee for Jane", observation, recentSteps: [], fields };
+
+  it("reads values and computes the cost", async () => {
+    vi.stubGlobal("fetch", async () => answer('{"fields":[{"ref":"e1","value":"Jane"},{"ref":"e2","value":"Large"}],"reason":"the goal names both"}'));
+    const fill = await planner().fill(fillInput);
+    expect(fill.fields).toEqual([{ ref: "e1", value: "Jane" }, { ref: "e2", value: "Large" }]);
+    expect(fill.costUsd).toBeCloseTo(0.00002, 8);
+  });
+
+  it("keeps a null value", async () => {
+    vi.stubGlobal("fetch", async () => answer('{"fields":[{"ref":"e1","value":null}],"reason":"no name needed"}'));
+    expect((await planner().fill(fillInput)).fields).toEqual([{ ref: "e1", value: null }]);
+  });
+
+  it("rejects a ref that was not offered", async () => {
+    vi.stubGlobal("fetch", async () => answer('{"fields":[{"ref":"e9","value":"x"}]}'));
+    await expect(planner().fill(fillInput)).rejects.toThrow(/not a field/);
+  });
+
+  it("rejects an option the select does not list", async () => {
+    vi.stubGlobal("fetch", async () => answer('{"fields":[{"ref":"e2","value":"Huge"}]}'));
+    await expect(planner().fill(fillInput)).rejects.toThrow(/not an option/);
   });
 });
