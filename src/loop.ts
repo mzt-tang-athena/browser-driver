@@ -26,6 +26,8 @@ export interface LoopOptions {
   gate?: { approve: (request: ApprovalRequest) => Promise<boolean>; threshold?: number };
   /** Stop the run when the model cost reaches this many dollars. */
   costCapUsd?: number;
+  /** The service sets this to stop a run between steps. */
+  shouldStop?: () => boolean;
 }
 
 /** The loop hands every record to the sink. The sink prints it, stores it, or both. */
@@ -109,6 +111,10 @@ export class ReflexLoop {
       }
       if (this.options.costCapUsd != null && this.costTotal() >= this.options.costCapUsd) {
         this.finish("paused", `Reached the cost cap of $${this.options.costCapUsd.toFixed(4)}.`);
+        break;
+      }
+      if (this.options.shouldStop?.()) {
+        this.finish("paused", "Stopped by the client.");
         break;
       }
       try {

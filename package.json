@@ -11,10 +11,12 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "demo": "tsx src/index.ts",
-    "eval": "tsx evals/run.ts"
+    "eval": "tsx evals/run.ts",
+    "service": "tsx src/service/main.ts"
   },
   "dependencies": {
-    "playwright": "^1.55.0"
+    "playwright": "^1.55.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

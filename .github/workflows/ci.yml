@@ -38,4 +38,4 @@ jobs:
           if [ -d write-good ]; then mv write-good/* .; rmdir write-good; fi
           find . -maxdepth 1 -name '*.yml' | while read f; do grep -q extends "$f" || rm "$f"; done
       - name: Docs prose lint
-        run: vale README.md docs/adr/*.md tickets/README.md
+        run: vale README.md docs/adr/*.md docs/live-view.md tickets/README.md

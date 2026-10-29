@@ -60,7 +60,7 @@ async function run(
   driver: Driver,
   reflex: ReflexProvider,
   planner: Planner,
-  options: Partial<Pick<LoopOptions, "maxSteps" | "fillFields" | "allowlist" | "gate" | "costCapUsd">> = {},
+  options: Partial<Pick<LoopOptions, "maxSteps" | "fillFields" | "allowlist" | "gate" | "costCapUsd" | "shouldStop">> = {},
 ): Promise<{ result: RunResult; log: CaptureLog }> {
   const log = new CaptureLog();
   const loop = new ReflexLoop({
@@ -74,6 +74,7 @@ async function run(
     allowlist: options.allowlist,
     gate: options.gate,
     costCapUsd: options.costCapUsd,
+    shouldStop: options.shouldStop,
   });
   return { result: await loop.run(), log };
 }
@@ -439,6 +440,17 @@ describe("guardrails", () => {
     expect(result.outcome).toBe("paused");
     expect(result.reason).toContain("cost cap");
     expect(result.stats.planner.calls).toBe(2);
+  });
+
+  it("stops when the client asks", async () => {
+    const driver = new FakeDriver(startPage);
+    const reflex = new FakeReflex({ rules: [{ pick: /order latte/i }] });
+    const planner = new FakePlanner({});
+    const { result } = await run(driver, reflex, planner, { shouldStop: () => driver.actions.length >= 1 });
+
+    expect(result.outcome).toBe("paused");
+    expect(result.reason).toContain("Stopped by the client");
+    expect(driver.actions).toHaveLength(1);
   });
 
   it("masks typed values in the step log", async () => {
