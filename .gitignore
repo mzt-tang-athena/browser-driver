@@ -5,3 +5,6 @@ evals/runs/
 profiles/
 .env
 .vale/
+
+# Worktree setup
+.worktree.env

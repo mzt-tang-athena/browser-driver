@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "setupWorktree": [
+    "./scripts/worktree-setup.sh"
+  ],
+  "setupWorktreeWait": true
+}
