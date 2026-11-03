@@ -12,6 +12,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.VALE_RULES_TOKEN }}
       - name: Install Chromium for the browser tests
         run: npx playwright install --with-deps chromium
       - name: Typecheck
@@ -25,6 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # The docs job needs the shared Vale rules package from GitHub Packages.
+      - name: Install npm dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.VALE_RULES_TOKEN }}
       - name: Install vale
         run: |
           curl -fsSL https://github.com/errata-ai/vale/releases/download/v3.24.0/vale_3.24.0_Linux_64-bit.tar.gz -o vale.tgz
@@ -37,5 +48,7 @@ jobs:
           cd .vale/styles/write-good
           if [ -d write-good ]; then mv write-good/* .; rmdir write-good; fi
           find . -maxdepth 1 -name '*.yml' | while read f; do grep -q extends "$f" || rm "$f"; done
+      - name: Sync shared Vale rules
+        run: npx vale-rules sync
       - name: Docs prose lint
         run: vale README.md docs/adr/*.md docs/live-view.md tickets/README.md

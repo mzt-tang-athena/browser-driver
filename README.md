@@ -28,10 +28,11 @@ agents faster and cheaper by about ten times.
   models. The run is deterministic and runs in CI. Add `--live` to use the
   real models for a manual check (see `evals/README.md`)
 - `npm run demo` runs one hard-coded goal on a local fixture page and
-  prints the step log. The reflex runs the live Jev model and the planner
-  runs a live chat model through the OpenCode Console when a key resolves:
-  `OPENCODE_API_KEY` in `.env`, or the local OpenCode credential store
-  (see `.env.example` and ADR 0006). Without a key both run as test fakes
+  prints the step log. The reflex runs the live Jev model. The planner
+  runs a live chat model through the OpenCode Console when a key
+  resolves. The key comes from `OPENCODE_API_KEY` in `.env`, or from the
+  local OpenCode credential store (see `.env.example` and ADR 0006).
+  Without a key both run as test fakes
 - `--reflex=fake` and `--planner=fake` force either fake
 - The loop has guardrails. An allowlist bounds navigation, an approval gate
   pauses before an irreversible action, and step and cost caps stop a run.
@@ -128,11 +129,25 @@ Headless is the default. A headed browser needs a display and a VNC
 server. `docs/live-view.md` shows the Xvfb and noVNC setup for a PC and a
 phone.
 
+## Prose lint
+
+The writing rules come from `@mzt-tang-athena/vale-rules` in GitHub
+Packages. Run `npm ci` once, then `make lint`. The lint target clones
+the `write-good` rules and runs `npx vale-rules sync` before Vale.
+
+A local install needs a token with the `read:packages` scope:
+
+```sh
+NODE_AUTH_TOKEN="$(gh auth token)" npm ci
+```
+
+CI reads the same token from the `VALE_RULES_TOKEN` secret.
+
 ## Decisions
 
 See `docs/adr/`. Start with 0001 (TypeScript), 0002 (driver as a
-service), 0003 (reflex and planner roles), 0004 (event schema in the
-contracts repo). Read 0005 for the loop's ported limits and the
+service), and 0003 (reflex and planner roles). 0004 covers the event
+schema in the contracts repo. Read 0005 for the loop's ported limits and the
 human-input action. Read 0006 for where the live reflex runs. Read 0007
 for the eval shape and 0008 for the driver port. Read 0009 for the log
 masking rule, and 0010 for how the service keeps runs.
@@ -141,5 +156,5 @@ masking rule, and 0010 for how the service keeps runs.
 
 - `mzt-tang-athena/contracts`: shared schemas, one package per domain
 - A private work repo: the work sibling. We port its tested constants
-  and patterns: menu chunking at 24 options, escalation thresholds, flow
-  recording with stable locators, per-run stats
+  and patterns. These cover menu chunking at 24 options, escalation
+  thresholds, flow recording with stable locators, and per-run stats
