@@ -4,7 +4,10 @@ profiles/
 evals/runs/
 profiles/
 .env
-.vale/
+# Vale (write-good is cloned, and the shared pack is synced, not committed)
+.vale/styles/write-good/
+.vale/styles/MyRules/
+.vale/styles/Readability/
 
 # Worktree setup
 .worktree.env
