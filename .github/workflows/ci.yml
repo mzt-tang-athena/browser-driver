@@ -5,6 +5,9 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,7 +17,7 @@ jobs:
       - name: Authenticate to GitHub Packages
         run: npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.VALE_RULES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm ci
       - name: Install Chromium for the browser tests
         run: npx playwright install --with-deps chromium
@@ -27,6 +30,9 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,7 +43,7 @@ jobs:
       - name: Authenticate to GitHub Packages
         run: npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.VALE_RULES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install npm dependencies
         run: npm ci
       - name: Install vale

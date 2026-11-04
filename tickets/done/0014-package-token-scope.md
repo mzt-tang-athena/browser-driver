@@ -20,13 +20,13 @@ text, so a token in the user config never applies.
 
 Remove the token line from `.npmrc`.
 Read the token from the user-level `~/.npmrc`.
-Make CI write the `VALE_RULES_TOKEN` secret into the runner's npm config.
+Make CI use the short-lived `GITHUB_TOKEN` with `packages: read`.
 
 ## Acceptance
 
 - [x] `.npmrc` names the registry and holds no token line
 - [x] `README.md` points at the user-level `~/.npmrc`
-- [x] both CI jobs authenticate from `VALE_RULES_TOKEN`
+- [x] both CI jobs authenticate with `GITHUB_TOKEN` and `packages: read`
 
 ## Outcome
 

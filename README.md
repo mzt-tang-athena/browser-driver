@@ -139,13 +139,14 @@ A local install needs a token with the `read:packages` scope.
 Put it in your user npm config:
 
 ```sh
-read -rsp 'read:packages token: ' VALE_RULES_TOKEN; echo
-npm config set //npm.pkg.github.com/:_authToken "$VALE_RULES_TOKEN" --location=user
-unset VALE_RULES_TOKEN
+read -rsp 'read:packages token: ' TOKEN; echo
+npm config set //npm.pkg.github.com/:_authToken "$TOKEN" --location=user
+unset TOKEN
 chmod 600 ~/.npmrc
 ```
 
-CI writes the `VALE_RULES_TOKEN` secret into the runner's npm config.
+CI adds `packages: read` and uses the `GITHUB_TOKEN` that GitHub creates
+for the run.
 
 ## Decisions
 
