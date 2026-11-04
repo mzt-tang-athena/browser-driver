@@ -4,7 +4,7 @@ title: Keep the package token out of the repo
 created: 2026-11-04
 priority: high
 assignee: opencode
-pr:
+pr: 17
 depends: []
 ---
 
@@ -30,4 +30,4 @@ Make CI write the `VALE_RULES_TOKEN` secret into the runner's npm config.
 
 ## Outcome
 
-Pending the pull request.
+Pull request [#17](https://github.com/mzt-tang-athena/browser-driver/pull/17) carries the change.
