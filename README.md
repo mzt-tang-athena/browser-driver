@@ -135,13 +135,18 @@ The writing rules come from `@mzt-tang-athena/vale-rules` in GitHub
 Packages. Run `npm ci` once, then `make lint`. The lint target clones
 the `write-good` rules and runs `npx vale-rules sync` before Vale.
 
-A local install needs a token with the `read:packages` scope:
+A local install needs a token with the `read:packages` scope.
+Put it in your user npm config:
 
 ```sh
-NODE_AUTH_TOKEN="$(gh auth token)" npm ci
+read -rsp 'read:packages token: ' TOKEN; echo
+npm config set //npm.pkg.github.com/:_authToken "$TOKEN" --location=user
+unset TOKEN
+chmod 600 ~/.npmrc
 ```
 
-CI reads the same token from the `VALE_RULES_TOKEN` secret.
+CI adds `packages: read` and uses the `GITHUB_TOKEN` that GitHub creates
+for the run.
 
 ## Decisions
 
