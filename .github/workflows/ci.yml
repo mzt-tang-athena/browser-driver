@@ -11,9 +11,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - name: Authenticate to GitHub Packages
+        run: npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.VALE_RULES_TOKEN }}
+      - run: npm ci
       - name: Install Chromium for the browser tests
         run: npx playwright install --with-deps chromium
       - name: Typecheck
@@ -32,10 +34,12 @@ jobs:
           node-version: 24
           cache: npm
       # The docs job needs the shared Vale rules package from GitHub Packages.
-      - name: Install npm dependencies
-        run: npm ci
+      - name: Authenticate to GitHub Packages
+        run: npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.VALE_RULES_TOKEN }}
+      - name: Install npm dependencies
+        run: npm ci
       - name: Install vale
         run: |
           curl -fsSL https://github.com/errata-ai/vale/releases/download/v3.24.0/vale_3.24.0_Linux_64-bit.tar.gz -o vale.tgz
