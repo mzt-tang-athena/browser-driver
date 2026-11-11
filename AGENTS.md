@@ -13,8 +13,7 @@ decision record. The tickets in `tickets/` are the work queue.
    `tickets/README.md`.
 2. Write an ADR the same day a decision carries a trade-off. A trade-off
    means an alternative existed, and a future agent could plausibly
-   reopen the choice. Copy `docs/adr/adr-template.md` and take the next
-   free number. Record later changes as dated amendments at the bottom
+   reopen the choice. Copy `docs/adr/adr-template.md` to `YYYYMMDD-short-title.md`. Record later changes as dated amendments at the bottom
    of the same file. Never rewrite the original decision. A change with
    no real alternative only needs a commit.
 3. Write docs in the ADR template's plain style: short sentences, active
