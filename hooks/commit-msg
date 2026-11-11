@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Reject every co-author trailer. The person who commits is the only author.
+set -euo pipefail
+
+msg="${1:?commit-msg: usage: commit-msg <message-file>}"
+
+if grep -qiE '^[[:space:]]*Co-authored-by:' "$msg"; then
+    echo "commit-msg: a Co-authored-by trailer was added; refused, because a commit has one author and no agent co-author." >&2
+    exit 1
+fi

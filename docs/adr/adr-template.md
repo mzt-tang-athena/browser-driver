@@ -1,7 +1,8 @@
 # ADR template
 
-Copy this file, rename it `NNNN-short-title.md` (next free number, keep zero
-padding).
+Copy this file, rename it `YYYYMMDD-short-title.md`. The date is the local
+creation date, then a lowercase kebab slug. An existing `NNNN-short-title.md`
+file keeps its name; never renumber a record.
 
 Write like this everywhere: short sentences, active voice, plain words. If a
 sentence needs a third clause, split it. The five rules live in the global
@@ -18,9 +19,9 @@ Example of the voice:
 it the safest rehearsal for the pattern."
 
 ```markdown
-# NNNN. Short title
+# Short title
 
-- **Status:** proposed | accepted | superseded by NNNN
+- **Status:** proposed | accepted | superseded by YYYYMMDD-short-title
 - **Date:** YYYY-MM-DD
 
 ## Context

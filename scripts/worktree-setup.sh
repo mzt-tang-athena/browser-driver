@@ -64,6 +64,9 @@ PY
     printf 'PORT=%s\n' "$port"
 } > .worktree.env
 
+git config --local core.hooksPath hooks
+echo "worktree-setup: core.hooksPath set to hooks"
+
 echo "worktree-setup: $worktree_name on port $port"
 
 # Dependencies. The lockfile is committed; npm ci is reproducible.
