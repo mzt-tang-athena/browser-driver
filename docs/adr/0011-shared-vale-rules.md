@@ -37,3 +37,10 @@ organization secret `VALE_RULES_TOKEN`.
 The pack adds `Antithesis`, `Plain`, and `SentenceLength`. Prose that
 passed before can now warn. We split the long sentences, so the tracked
 markdown keeps 0 errors and 0 warnings.
+
+## Amendment, 2026-11-12
+
+The 0 warnings above held only for root files. `.vale.ini` used
+`[**.md]`, and Vale skipped every file in a subdirectory. The glob is now
+`[*.md]`. The ADRs and docs now show 24 warnings. Warnings do not fail
+the lint, so they stay until someone edits those files.
