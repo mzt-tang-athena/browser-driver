@@ -1,4 +1,6 @@
 VALE_STYLES = .vale/styles
+# Last good commit before upstream regenerated its rules on 2026-11-19.
+WRITE_GOOD_SHA = c9ceca7f574248a201d5524b001099c5626c7519
 
 .PHONY: lint ensure-styles sync-styles check-records test-check-records hooks
 
@@ -9,7 +11,7 @@ sync-styles:
 	npx vale-rules sync
 
 ensure-styles:
-	@[ -f $(VALE_STYLES)/write-good/Passive.yml ] || (git clone -q --depth=1 https://github.com/errata-ai/write-good $(VALE_STYLES)/write-good && cd $(VALE_STYLES)/write-good && if [ -d write-good ]; then mv write-good/* .; rmdir write-good; fi && find . -maxdepth 1 -name '*.yml' ! -name '*.rules.yml' | while read f; do grep -q extends $$f || rm $$f; done)
+	@[ -f $(VALE_STYLES)/write-good/Passive.yml ] || (git init -q $(VALE_STYLES)/write-good && git -C $(VALE_STYLES)/write-good fetch -q --depth=1 https://github.com/errata-ai/write-good $(WRITE_GOOD_SHA) && git -C $(VALE_STYLES)/write-good checkout -q FETCH_HEAD && cd $(VALE_STYLES)/write-good && if [ -d write-good ]; then mv write-good/* .; rmdir write-good; fi && find . -maxdepth 1 -name '*.yml' ! -name '*.rules.yml' | while read f; do grep -q extends $$f || rm $$f; done)
 
 check-records:
 	@scripts/check-records.sh
