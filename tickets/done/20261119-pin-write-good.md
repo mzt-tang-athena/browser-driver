@@ -3,7 +3,7 @@ title: Pin the write-good style clone
 created: 2026-11-19
 priority: high
 assignee: pstack
-pr: 
+pr: 20
 depends: []
 ---
 
@@ -23,6 +23,8 @@ steps stay as they are.
 - [x] `ensure-styles` fetches the pinned SHA, then flattens and filters as before.
 - [x] The CI "Fetch write-good styles" step fetches the same SHA.
 - [x] With `.vale/styles/write-good` deleted, `make lint` fetches `c9ceca7` and passes.
-- [x] `scripts/gate.sh fast` passes on the PR head.
+- [x] `make lint` passes after the change.
 
 ## Outcome
+
+Pull request [#20](https://github.com/mzt-tang-athena/browser-driver/pull/20) carries the change.
